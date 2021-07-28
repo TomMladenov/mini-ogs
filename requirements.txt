@@ -1,0 +1,14 @@
+APScheduler==3.7.0
+apschedulerui==0.0.1
+fastapi==0.67.0
+imagezmq==1.1.1
+PyTrinamic==0.1.27
+pytz==2021.1
+simple-websocket==0.2.0
+simple-websocket-server==0.4.1
+simplejson==3.13.2
+uvicorn==0.14.0
+websocket-client==0.44.0
+zwoasi==0.0.22
+pyzmq==22.1.0
+pytelegraf==0.3.3
