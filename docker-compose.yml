@@ -11,6 +11,7 @@ services:
     network_mode: "host"
     volumes:
         - ./config/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf
-  ogs-core:
-    image: ogs
+  ogs:
+    image: ogs-core
     network_mode: "host"
+    privileged: true

@@ -2,7 +2,7 @@
 Repository for an advanced mini optical ground station
 
 
-## preparation
+## Preparation
 
 Pull necessary images:
 ```
@@ -14,17 +14,32 @@ Pull necessary images:
 
 build custom image
 ```
- docker build .
+ docker build . -t ogs-core
 ``` 
 
-## operations
+## Development
 
-Start the docker containers:
+To run ogs-core standalone:
 ```
- docker compose up -d
+docker run -it --network host --privileged --name ogs-core ogs-core sh
 ```
 
-Stop all containers:
+Sync local code to the running container with:
 ```
- docker compose down -d
+./sync.sh
 ```
+
+
+## Operations
+
+Start the docker containers using the wrapper script:
+```
+ ./start.sh
+```
+
+Stop and remove all containers using the wrapper script:
+```
+ ./stop.sh
+```
+
+
