@@ -82,7 +82,7 @@
           "text": {},
           "textMode": "auto"
         },
-        "pluginVersion": "8.1.0-beta2",
+        "pluginVersion": "8.0.3",
         "targets": [
           {
             "channel": "stream/ogs/AZIMUTH",
@@ -144,7 +144,7 @@
           "text": {},
           "textMode": "auto"
         },
-        "pluginVersion": "8.1.0-beta2",
+        "pluginVersion": "8.0.3",
         "targets": [
           {
             "channel": "stream/ogs/ELEVATION",
@@ -169,7 +169,11 @@
             "color": {
               "mode": "thresholds"
             },
+            "decimals": 1,
             "mappings": [],
+            "max": 120,
+            "min": 0,
+            "noValue": "NO STREAM",
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -188,17 +192,13 @@
           "overrides": []
         },
         "gridPos": {
-          "h": 4,
+          "h": 5,
           "w": 3,
-          "x": 21,
+          "x": 12,
           "y": 1
         },
         "id": 13,
         "options": {
-          "colorMode": "value",
-          "graphMode": "area",
-          "justifyMode": "auto",
-          "orientation": "auto",
           "reduceOptions": {
             "calcs": [
               "lastNotNull"
@@ -206,10 +206,11 @@
             "fields": "",
             "values": false
           },
-          "text": {},
-          "textMode": "auto"
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true,
+          "text": {}
         },
-        "pluginVersion": "8.1.0-beta2",
+        "pluginVersion": "8.0.3",
         "targets": [
           {
             "channel": "stream/ogs/imager",
@@ -223,8 +224,9 @@
             "refId": "A"
           }
         ],
-        "title": "Panel Title",
-        "type": "stat"
+        "title": "Imager FPS",
+        "transparent": true,
+        "type": "gauge"
       },
       {
         "datasource": "-- Grafana --",
@@ -599,7 +601,7 @@
       "list": []
     },
     "time": {
-      "from": "now-6h",
+      "from": "now-45s",
       "to": "now"
     },
     "timepicker": {
