@@ -6,15 +6,15 @@ Repository for an advanced mini optical ground station
 
 Pull necessary images:
 ```
- docker pull grafana/grafana
+ docker pull grafana/grafana:8.0.3
  docker pull influxdb:1.8
- docker pull telegraf
- docker pull jermine/opencv:armhf-alpine
+ docker pull telegraf:1.19.1
 ```
 
-build custom image
+build custom image(s)
 ```
- docker build . -t ogs-core
+ docker build . -t ogs-core --file Dockerfile_ogs-core
+ docker build . -t telegraf-python:1.19.1 --file Dockerfile_telegraf
 ``` 
 
 ## Development
@@ -27,6 +27,11 @@ docker run -it --network host --privileged --name ogs-core ogs-core sh
 Sync local code to the running container with:
 ```
 ./sync.sh
+```
+
+To run telegraf standalone for dev purposes:
+```
+docker run --network host --privileged -v /home/user/git/mini-ogs/config/telegraf/:/etc/telegraf/ telegraf
 ```
 
 
