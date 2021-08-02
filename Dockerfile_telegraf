@@ -1,0 +1,13 @@
+FROM telegraf:1.19.1
+
+RUN apt-get update && apt-get install -y python3 && \
+    rm -rf /var/lib/apt/lists/*
+
+CMD echo 'Waiting for Grafana API response'; until $(curl --output /dev/null --silent --head --fail http://127.0.0.1:3000/api/health); do printf '.'; \
+    sleep 1; done; echo 'got response!'; MASTERKEY=$(curl -s 'http://admin:admin@127.0.0.1:3000/api/auth/keys' -XPOST -H \
+    'Content-Type: application/json' -d '{"role":"Admin","name":"api_key"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['key'])"); \
+    sed -i '/Authorization/c\ Authorization ="Bearer '$MASTERKEY'" ' /etc/telegraf/telegraf.conf && echo "Generated new Grafana API master key: $MASTERKEY"; \
+    echo 'Using configuration file:'; cat /etc/telegraf/telegraf.conf; telegraf
+
+
+
