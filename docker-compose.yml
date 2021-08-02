@@ -1,17 +1,31 @@
 version: "3.9"
 services:
   grafana:
-    image: grafana/grafana
-    network_mode: "host"
-  influxd:
-    image: influxdb:1.8
-    network_mode: "host"
-  telegraf:
-    image: telegraf
+    image: grafana/grafana:8.0.3
     network_mode: "host"
     volumes:
-        - ./config/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf
+      - ./config/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ./config/grafana/dashboard.json:/var/lib/grafana/dashboards/dashboard.json
+
+#  influxd:
+#    image: influxdb:1.8
+#    network_mode: "host"
+
+  telegraf:
+    image: telegraf-python:1.19.1
+    network_mode: "host"
+    volumes:
+      - ./config/telegraf/:/etc/telegraf/
+  
   ogs:
     image: ogs-core
     network_mode: "host"
-    privileged: true
+    privileged: true # necessary to access usb devices
+    volumes:    
+    - type: bind
+      source: ./source/
+      target: /opt/source
+    - type: bind
+      source: ./config/ogs-core
+      target: /opt/config
+    # entrypoint: /bin/bash # only during development, removing this entrypoint override will cause the server to start automatically
