@@ -1,5 +1,5 @@
 #!/bin/bash
 
-docker-compose down
-docker container prune -f
+docker-compose down --remove-orphans
+docker container prune -f 
 docker ps -a
