@@ -226,98 +226,40 @@ def emergency_stop():
 @api.put("/server/imager/stream/start", tags=["imager"])
 def start_streaming(t: Optional[str] = None):
     desc = "Start imager streaming"
+    return add_server_job(server.imager.startStreaming, None, t, desc)
 
-    try:
-        if t != None:
-            job = server.scheduler.add_job(server.imager.startStreaming, trigger='date', next_run_time=t, name=desc)
-
-        else:
-            job = server.scheduler.add_job(server.imager.startStreaming, name=desc)
-
-        return 	{													
-                    "success" : True,								
-                    "job":											
-                        {											
-                            "id": job.id, 							
-                            "name": job.name, 						
-                            "function": job.func.__name__, 			
-                            "args": job.id 							
-                        }											
-                }
-    except Exception as e:
-
-        return 	{													
-                    "success" : False, 								
-                    "message": "Exception occurred: {}".format(e) 	
-                }
 
 @api.put("/server/imager/stream/stop", tags=["imager"])
 def stop_streaming(t: Optional[str] = None):
     desc = "Stop imager streaming"
+    return add_server_job(server.imager.stopStreaming, None, t, desc)
 
-    try:
-        if t != None:
-            job = server.scheduler.add_job(server.imager.stopStreaming, trigger='date', next_run_time=t, name=desc)
-
-        else:
-            job = server.scheduler.add_job(server.imager.stopStreaming, name=desc)
-
-        return 	{													
-                    "success" : True,								
-                    "job":											
-                        {											
-                            "id": job.id, 							
-                            "name": job.name, 						
-                            "function": job.func.__name__, 			
-                            "args": job.id 							
-                        }											
-                }
-    except Exception as e:
-
-        return 	{													
-                    "success" : False, 								
-                    "message": "Exception occurred: {}".format(e) 	
-                }
 
 @api.post("/server/imager/exposure", tags=["imager"])
 def set_exposure(exposure : int, t: Optional[str] = None):
     desc = "Set imager exposure"
-
-    try:
-        if t != None:
-            job = server.scheduler.add_job(server.imager.setExposure, trigger='date', next_run_time=t, args=[exposure], name=desc)
-
-        else:
-            job = server.scheduler.add_job(server.imager.setExposure, args=[exposure], name=desc)
-
-        return 	{													
-                    "success" : True,								
-                    "job":											
-                        {											
-                            "id": job.id, 							
-                            "name": job.name, 						
-                            "function": job.func.__name__, 			
-                            "args": job.id 							
-                        }											
-                }
-    except Exception as e:
-
-        return 	{													
-                    "success" : False, 								
-                    "message": "Exception occurred: {}".format(e) 	
-                }
+    return add_server_job(server.imager.setExposure, [exposure], t, desc)
 
 
 @api.post("/server/imager/gain", tags=["imager"])
 def set_gain(gain : int, t: Optional[str] = None):
     desc = "Set imager gain"
+    return add_server_job(server.imager.setGain, [gain], t, desc)
+
+
+@api.post("/server/imager/flip", tags=["imager"])
+def set_gain(flip : int, t: Optional[str] = None):
+    desc = "Set imager gain"
+    return add_server_job(server.imager.setFlip, [flip], t, desc)
+
+
+def add_server_job(function, args, t, desc):			
 
     try:
         if t != None:
-            job = server.scheduler.add_job(server.imager.setGain, trigger='date', next_run_time=t, args=gain, name=desc)
-
+            job = server.scheduler.add_job(function, trigger='date', next_run_time=t, args=args, name=desc)
         else:
-            job = server.scheduler.add_job(server.imager.setGain, args=gain, name=desc)
+            job = server.scheduler.add_job(function, args=args, name=desc)
 
         return 	{													
                     "success" : True,								
@@ -326,7 +268,7 @@ def set_gain(gain : int, t: Optional[str] = None):
                             "id": job.id, 							
                             "name": job.name, 						
                             "function": job.func.__name__, 			
-                            "args": job.id 							
+                            "args": args 							
                         }											
                 }
     except Exception as e:
@@ -334,7 +276,7 @@ def set_gain(gain : int, t: Optional[str] = None):
         return 	{													
                     "success" : False, 								
                     "message": "Exception occurred: {}".format(e) 	
-                }				
+                }
 
 
 def custom_openapi():
