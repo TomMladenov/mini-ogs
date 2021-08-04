@@ -8,6 +8,10 @@ from typing import Optional
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.openapi.utils import get_openapi
+
+from apscheduler.schedulers.background import BackgroundScheduler
+from apschedulerui.web import SchedulerUI
+
 from server import Server
 
 import sys
@@ -18,6 +22,10 @@ import time
 import inspect
 
 tags_metadata = [
+    {
+        "name": "general",
+        "description": "General",
+    },	    
     {
         "name": "mount",
         "description": "Mount functions",
@@ -39,22 +47,16 @@ server = Server()
 api = FastAPI(openapi_tags=tags_metadata)
 
 
-@api.put("/server/ping")
+@api.put("/server/ping", tags=["general"])
 def ping():
     return {"success": True, "response": "pong"}
 
 
-@api.post("/server/mount/position/goto", tags=["mount"])
-def goto_position(az: float, el: float, t: Optional[str] = None):
-    desc = "{} args: az={}, el={}".format(inspect.getframeinfo(inspect.currentframe()).function, az, el)
+@api.get("/server/job", tags=["general"])
+def get_job(jobid: str):
+    job = server.scheduler.get_job(jobid)
 
-    try:
-        if t != None:
-            job = server.scheduler.add_job(server.mount.gotoPosition, trigger='date', next_run_time=t, args=[az, el], name=desc)
-
-        else:
-            job = server.scheduler.add_job(server.mount.gotoPosition, args=[az, el], name=desc)
-
+    if job != None:
         return 	{													
                     "success" : True,								
                     "job":											
@@ -62,204 +64,109 @@ def goto_position(az: float, el: float, t: Optional[str] = None):
                             "id": job.id, 							
                             "name": job.name, 						
                             "function": job.func.__name__, 			
-                            "args": job.id 							
+                            "args": job.args							
                         }											
                 }
+    else:
+        return {"success": False, "response": "No job found on the server with this ID!"} 
 
-    except Exception as e:
 
+@api.get("/server/jobs", tags=["general"])
+def get_jobs():
+    jobs = server.scheduler.get_jobs()
+
+    if jobs != []:
         return 	{													
-                    "success" : False, 								
-                    "message": "Exception occurred: {}".format(e) 	
+                    "success" : True,								
+                    "jobs":	[{"id" : job.id, "name" : job.name, "function" : job.func.__name__, "args" : job.args} for job in jobs]										
                 }
+    else:
+        return {"success": False, "response": "No jobs found on the server!"}
 
+
+@api.put("/server/jobs/remove", tags=["general"])
+def remove_jobs():
+    server.scheduler.remove_all_jobs()
+    return {"success": True, "response": ""}
+
+
+@api.post("/server/mount/position/goto", tags=["mount"])
+def goto_position(az: float, el: float, t: Optional[str] = None):
+    keyword_arguments = {"az" : az, "el" : el}
+    return add_server_job(function=server.mount.gotoPosition, args=None, kwargs=keyword_arguments, t=t)
+    
 
 @api.post("/server/mount/position/set", tags=["mount"])
 def set_position(az: float, el: float, t: Optional[str] = None):
-    desc = "{} args: az={}, el={}".format(inspect.getframeinfo(inspect.currentframe()).function, az, el)
+    keyword_arguments = {"az" : az, "el" : el}
+    return add_server_job(function=server.mount.setPosition, args=None, kwargs=keyword_arguments, t=t)
 
-    try:
-        if t != None:
-            job = server.scheduler.add_job(server.mount.setPosition, trigger='date', next_run_time=t, args=[az, el], name=desc)
-
-        else:
-            job = server.scheduler.add_job(server.mount.setPosition, args=[az, el], name=desc)
-
-        return 	{													
-                    "success" : True,								
-                    "job":											
-                        {											
-                            "id": job.id, 							
-                            "name": job.name, 						
-                            "function": job.func.__name__, 			
-                            "args": job.id 							
-                        }											
-                }
-
-    except Exception as e:
-
-        return 	{													
-                    "success" : False, 								
-                    "message": "Exception occurred: {}".format(e) 	
-                }
 
 @api.post("/server/mount/velocity", tags=["mount"])
 def goto_velocity(az: float, el: float, t: Optional[str] = None):
-    desc = "{} args: az={}, el={}".format(inspect.getframeinfo(inspect.currentframe()).function, az, el)
-
-    try:
-        if t != None:
-            job = server.scheduler.add_job(server.mount.gotoVelocity, trigger='date', next_run_time=t, args=[az, el], name=desc)
-
-        else:
-            job = server.scheduler.add_job(server.mount.gotoVelocity, args=[az, el], name=desc)
-
-        return 	{													
-                    "success" : True,								
-                    "job":											
-                        {											
-                            "id": job.id, 							
-                            "name": job.name, 						
-                            "function": job.func.__name__, 			
-                            "args": [az, el]						
-                        }											
-                }
-
-    except Exception as e:
-
-        return 	{													
-                    "success" : False, 								
-                    "message": "Exception occurred: {}".format(e) 	
-                }
+    keyword_arguments = {"az" : az, "el" : el}
+    return add_server_job(function=server.mount.gotoVelocity, args=None, kwargs=keyword_arguments, t=t)
 
 
 @api.post("/server/mount/start_track", tags=["mount"])
 def start_track(t: Optional[str] = None):
-    desc = "Start tracking"
+    return add_server_job(function=server.mount.startTracking, args=None, kwargs=None, t=t)
 
-    try:
-        if t != None:
-            job = server.scheduler.add_job(server.mount.startTracking, trigger='date', next_run_time=t, name=desc)
-
-        else:
-            job = server.scheduler.add_job(server.mount.startTracking, name=desc)
-
-        return 	{													
-                    "success" : True,								
-                    "job":											
-                        {											
-                            "id": job.id, 							
-                            "name": job.name, 						
-                            "function": job.func.__name__						
-                        }											
-                }
-
-    except Exception as e:
-
-        return 	{													
-                    "success" : False, 								
-                    "message": "Exception occurred: {}".format(e) 	
-                }
 
 @api.post("/server/mount/pid", tags=["mount"])
-def set_pid(P: float, I: float, D:float, t: Optional[str] = None):
-    desc = "{} args: P={}, I={}, D={}".format(inspect.getframeinfo(inspect.currentframe()).function, P, I, D)
-
-    try:
-        if t != None:
-            job = server.scheduler.add_job(server.mount.setPIDvalues, trigger='date', next_run_time=t, args=[P, I, D], name=desc)
-
-        else:
-            job = server.scheduler.add_job(server.mount.setPIDvalues, args=[P, I, D], name=desc)
-
-        return 	{													
-                    "success" : True,								
-                    "job":											
-                        {											
-                            "id": job.id, 							
-                            "name": job.name, 						
-                            "function": job.func.__name__, 			
-                            "args": [P, I, D]					
-                        }											
-                }
-
-    except Exception as e:
-
-        return 	{													
-                    "success" : False, 								
-                    "message": "Exception occurred: {}".format(e) 	
-                }
+def set_pid(p: float, i: float, d:float, t: Optional[str] = None):
+    keyword_arguments = {"p" : p, "i" : i, "d" : d}
+    return add_server_job(function=server.mount.setPIDvalues, args=None, kwargs=keyword_arguments, t=t)
 
 
 @api.get("/server/mount/status", tags=["mount"])
 def get_status():
     desc = "Get mount status"
-
     return server.mount.getStatus()
 
 
 @api.put("/server/mount/emergency_stop", tags=["mount"])
 def emergency_stop():
-    desc = "Perform an emergency stop"
-
-    try:
-        job = server.scheduler.add_job(server.mount.emergencyStop, name=desc)
-
-        return 	{													
-                    "success" : True,								
-                    "job":											
-                        {											
-                            "id": job.id, 							
-                            "name": job.name, 						
-                            "function": job.func.__name__, 			
-                            "args": job.id 							
-                        }											
-                }
-    except Exception as e:
-
-        return 	{													
-                    "success" : False, 								
-                    "message": "Exception occurred: {}".format(e) 	
-                }
+    return add_server_job(function=server.mount.emergencyStop, args=None, kwargs=None, t=t)
 
 
 @api.put("/server/imager/stream/start", tags=["imager"])
 def start_streaming(t: Optional[str] = None):
-    desc = "Start imager streaming"
-    return add_server_job(server.imager.startStreaming, None, t, desc)
+    return add_server_job(function=server.imager.startStreaming, args=None, kwargs=None, t=t)
 
 
 @api.put("/server/imager/stream/stop", tags=["imager"])
 def stop_streaming(t: Optional[str] = None):
-    desc = "Stop imager streaming"
-    return add_server_job(server.imager.stopStreaming, None, t, desc)
+    return add_server_job(function=server.imager.stopStreaming, args=None, kwargs=None, t=t)
 
 
 @api.post("/server/imager/exposure", tags=["imager"])
 def set_exposure(exposure : int, t: Optional[str] = None):
-    desc = "Set imager exposure"
-    return add_server_job(server.imager.setExposure, [exposure], t, desc)
+    keyword_arguments = {"exposure" : exposure}
+    return add_server_job(function=server.imager.setExposure, args=None, kwargs=keyword_arguments, t=t)
 
 
 @api.post("/server/imager/gain", tags=["imager"])
 def set_gain(gain : int, t: Optional[str] = None):
-    desc = "Set imager gain"
-    return add_server_job(server.imager.setGain, [gain], t, desc)
+    keyword_arguments = {"gain" : gain}
+    return add_server_job(function=server.imager.setGain, args=None, kwargs=keyword_arguments, t=t)
 
 
 @api.post("/server/imager/flip", tags=["imager"])
-def set_gain(flip : int, t: Optional[str] = None):
-    desc = "Set imager gain"
-    return add_server_job(server.imager.setFlip, [flip], t, desc)
+def set_flip(flip : int, t: Optional[str] = None):
+    keyword_arguments = {"flip" : flip}
+    return add_server_job(function=server.imager.setFlip, args=None, kwargs=keyword_arguments, t=t)
 
 
-def add_server_job(function, args, t, desc):			
+def add_server_job(function, args, kwargs, t):			
 
     try:
+        desc = "{} {} {}".format(function.__name__, args, kwargs)
+
         if t != None:
-            job = server.scheduler.add_job(function, trigger='date', next_run_time=t, args=args, name=desc)
+            job = server.scheduler.add_job(function, trigger='date', next_run_time=t, args=args, kwargs=kwargs, name=desc)
         else:
-            job = server.scheduler.add_job(function, args=args, name=desc)
+            job = server.scheduler.add_job(function, trigger='date', args=args, kwargs=kwargs, name=desc)
 
         return 	{													
                     "success" : True,								
@@ -268,7 +175,10 @@ def add_server_job(function, args, t, desc):
                             "id": job.id, 							
                             "name": job.name, 						
                             "function": job.func.__name__, 			
-                            "args": args 							
+                            "args": job.args,
+                            "kwargs" : job.kwargs,
+                            "next_run_time" : job.next_run_time,
+                            "executor" : job.executor					
                         }											
                 }
     except Exception as e:
@@ -295,10 +205,9 @@ def custom_openapi():
 if __name__ == '__main__':
 
 
-    from apscheduler.schedulers.background import BackgroundScheduler
-    from apschedulerui.web import SchedulerUI
     ui = SchedulerUI(server.scheduler)
-    ui.start()  # Server available at localhost:5000.
+
+    ui.start(port=5000, host='0.0.0.0', daemon=True)
 
 
     for handler in logging.root.handlers[:]:
@@ -313,6 +222,9 @@ if __name__ == '__main__':
 
     api.openapi = custom_openapi
 
+    # ------------------ blocking call -------------------
     uvicorn.run(api, host=server.host, port=server.port, log_config=log_config, headers=[('Server', server.s_header_description)])
+    # ----------------------------------------------------
+    
     server.shutdown()
     sys.exit("Please wait until all systems are stopped...")
