@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
-import datetime
 import enum
 import logging
 import os
 import sys
 import threading
+from threading import Timer
+from core.timer import CustomTimer
 import time
 
 import cv2
@@ -20,7 +21,6 @@ class ImagerType(enum.Enum):
 
 
 class ImagerState(enum.Enum):
-
     IDLE=0
     STREAMING=1
 
@@ -39,18 +39,21 @@ class Imager(threading.Thread):
         self.name = self.config["s_name"]
         self.running = True
 
-        self.prevLoopTime = datetime.datetime.utcnow()
-        self.currentLoopTime = datetime.datetime.utcnow()
+        self.fps = 0
+        self.temperature = 0
+
+        self.prevLoopTime = time.time()
+        self.currentLoopTime = time.time()
 
         self.sender = imagezmq.ImageSender("tcp://{}:{}".format(self.config["s_streamhost"], self.config["i_streamport"]), REQ_REP=False)
-
-        self.fps = 30.0
 
         # drive mutex
         self.mutex = threading.Lock()
 
         self.state = ImagerState.IDLE
-        self.nextState = ImagerState.IDLE       
+        self.nextState = ImagerState.IDLE
+
+        self.fps_array = []     
 
         libfile = '/opt/lib/libASICamera2.so.1.19.1'
 
@@ -70,17 +73,9 @@ class Imager(threading.Thread):
 
         self.initCamera()
 
-        self.status =   {
-                            "state" : ImagerState(self.state).name,
-                            "fps" : self.fps,
-                            "temperature" : (self.camera.get_control_value(asi.ASI_TEMPERATURE))[0]/10.0
-                        }
-
-        # metdata is the combination of the configuration and the status
-        self.metadata = {
-                            "config" : self.config,
-                            "status" : self.status
-                        }
+        # init task timers
+        self.poll_timer = CustomTimer(self.config["f_poll_interval"], self.__pollTask).start()
+        self.publish_timer = CustomTimer(self.config["f_publish_interval"], self.__publishTask).start()
 
     def initCamera(self):
         self.camera.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, self.config["i_bandwidth"])
@@ -105,10 +100,6 @@ class Imager(threading.Thread):
 
     def getConfig(self):
         return self.config
-
-    def getStatus(self):
-        return self.status
-
 
     def __executeCameraCommand(self, stateCondition, nextStateOnSuccess, cameraCommand, *cameraCommandArgs):
 
@@ -186,45 +177,65 @@ class Imager(threading.Thread):
 
     def stop(self):
         self.stopStreaming()
+        self.poll_timer.cancel()
+        self.publish_timer.cancel()
         self.running = False
+
+
+    def getStatus(self):
+        status =    {
+                        "state" : ImagerState(self.state).name,
+                        "fps" : self.fps,
+                        "temperature" : self.temperature
+                    }
+        return status
+
+    # functions called internally by the task timers
+
+    def __pollTask(self):
+        self.mutex.acquire()
+        self.temperature = self.camera.get_control_value(asi.ASI_TEMPERATURE)[0]/10.0
+        self.mutex.release()
+
+
+    def __publishTask(self):
+        current_status = self.getStatus()
+        self.parent.telegraf.metric(self.name, current_status)
 
 
     def run(self):
         while self.running:
 
-            self.currentLoopTime = datetime.datetime.utcnow()
-
+            # get the time between 2 loops
+            self.currentLoopTime = time.time()
             self.loopdelta = self.currentLoopTime - self.prevLoopTime
             self.prevLoopTime = self.currentLoopTime
-
-            looptime = self.loopdelta.total_seconds()
-            self.fps = round(1.0 / looptime, 2)
-            self.status["fps"] = self.fps
-            
-            #===================
+           
+            # acquire the mutex
             self.mutex.acquire()
-            #===================
 
             # state register
-            #--------------------------
             self.state = self.nextState
-            #--------------------------
 
             if self.state == ImagerState.IDLE:
-                pass
+                self.fps = 0
 
             elif self.state == ImagerState.STREAMING:
                 self.img = self.camera.capture_video_frame(buffer_=None, filename=None, timeout=None)
                 result, buffer = cv2.imencode('.jpg', self.img, [int(cv2.IMWRITE_JPEG_QUALITY), self.config["i_transport_compression"]])
-                metadata = str({"config":self.config, "status":self.status})
+                metadata = str({"config":self.config, "status": self.getStatus()})
                 self.sender.send_image(metadata, buffer)
 
-                self.parent.telegraf.metric(self.name, self.status)
+                # calculate an average frames/sec using 10 loops
+                fps = round(1.0 / self.loopdelta, 2)
+                self.fps_array.append(fps)
+                if len(self.fps_array) >= 10:
+                    self.fps = round(sum(self.fps_array)/len(self.fps_array), 2)
+                    # clear the array again
+                    self.fps_array = []
 
-
-            #===================
+            # release the mutex
             self.mutex.release()
-            #===================
 
             if self.state == ImagerState.IDLE:
                 time.sleep(1)

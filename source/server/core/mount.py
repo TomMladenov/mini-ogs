@@ -69,16 +69,16 @@ class Mount(object):
 			self.elevation = Axis(self, drive=self.drive0, type=AxisType.ELEVATION, config = el_config, debug=True)
 
 		else:
-			logging.critical("Exception encountered during mount INIT ")
+			logging.critical("Exception encountered during mount INIT")
 			sys.exit(0)
 
 		#Start axis threads
 		self.azimuth.start()
 		self.elevation.start()
 
-	def gotoPosition(self, pos_az, pos_el):
-		response_azimuth = self.azimuth.gotoPosition(pos_az)
-		response_elevation = self.elevation.gotoPosition(pos_el)
+	def gotoPosition(self, az, el):
+		response_azimuth = self.azimuth.gotoPosition(az)
+		response_elevation = self.elevation.gotoPosition(el)
 		time.sleep(2)
 
 		if response_azimuth["success"] and response_elevation["success"]:
@@ -104,9 +104,9 @@ class Mount(object):
 			self.azimuth.startTracking()
 			self.elevation.startTracking()
 
-	def setPIDvalues(self, P, I, D):
-		self.azimuth.setPIDvalues(P, I, D)
-		self.elevation.setPIDvalues(P, I, D)
+	def setPIDvalues(self, p, i, d):
+		self.azimuth.setPIDvalues(p, i, d)
+		self.elevation.setPIDvalues(p, i, d)
 		
 
 	def emergencyStop(self):
