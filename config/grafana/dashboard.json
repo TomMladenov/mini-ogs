@@ -45,7 +45,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 3,
+          "decimals": 4,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -106,7 +106,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 3,
+          "decimals": 4,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -326,7 +326,7 @@
               },
               {
                 "color": "#EAB839",
-                "value": 40
+                "value": 45
               },
               {
                 "color": "red",
@@ -536,7 +536,7 @@
               },
               {
                 "color": "#EAB839",
-                "value": 40
+                "value": 45
               },
               {
                 "color": "red",
@@ -1621,7 +1621,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 3,
         "x": 3,
         "y": 10
@@ -1714,7 +1714,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 3,
         "x": 6,
         "y": 10
@@ -1806,7 +1806,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 3,
         "x": 9,
         "y": 10
@@ -1845,99 +1845,6 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 3,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "degree"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 3,
-        "x": 0,
-        "y": 15
-      },
-      "id": 34,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "targets": [
-        {
-          "buffer": 300000,
-          "channel": "stream/ogs/azimuth",
-          "filter": {
-            "fields": [
-              "time",
-              "D",
-              "I",
-              "P"
-            ]
-          },
-          "queryType": "measurements",
-          "refId": "A"
-        }
-      ],
-      "title": "AZ PID",
-      "transparent": true,
-      "type": "timeseries"
-    },
-    {
-      "datasource": "-- Grafana --",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
             "mode": "thresholds"
           },
           "decimals": 2,
@@ -1999,10 +1906,10 @@
       "gridPos": {
         "h": 2,
         "w": 3,
-        "x": 3,
-        "y": 16
+        "x": 0,
+        "y": 15
       },
-      "id": 38,
+      "id": 44,
       "options": {
         "colorMode": "background",
         "graphMode": "none",
@@ -2041,93 +1948,78 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 3,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
+          "decimals": 0,
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "OFF-TARGET"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "ON-TARGET"
+                }
+              },
+              "type": "value"
             }
-          },
-          "mappings": [],
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
               }
             ]
           },
-          "unit": "degree"
+          "unit": "none"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 2,
         "w": 3,
-        "x": 6,
-        "y": 16
+        "x": 3,
+        "y": 15
       },
-      "id": 35,
+      "id": 40,
       "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "/^on_target ogs$/",
+          "values": false
         },
-        "tooltip": {
-          "mode": "single"
-        }
+        "text": {},
+        "textMode": "auto"
       },
+      "pluginVersion": "8.0.3",
       "targets": [
         {
-          "buffer": 300000,
-          "channel": "stream/ogs/elevation",
+          "channel": "stream/ogs/azimuth",
           "filter": {
             "fields": [
               "time",
-              "D",
-              "I",
-              "P"
+              "on_target"
             ]
           },
           "queryType": "measurements",
           "refId": "A"
         }
       ],
-      "title": "EL PID",
+      "title": "AZ controller convergence",
       "transparent": true,
-      "type": "timeseries"
+      "type": "stat"
     },
     {
       "datasource": "-- Grafana --",
@@ -2195,8 +2087,8 @@
       "gridPos": {
         "h": 2,
         "w": 3,
-        "x": 9,
-        "y": 16
+        "x": 6,
+        "y": 15
       },
       "id": 39,
       "options": {
@@ -2246,90 +2138,12 @@
                 "0": {
                   "color": "red",
                   "index": 0,
-                  "text": "UNLOCKED"
+                  "text": "OFF-TARGET"
                 },
                 "1": {
                   "color": "green",
                   "index": 1,
-                  "text": "LOCKED"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 2,
-        "w": 3,
-        "x": 3,
-        "y": 18
-      },
-      "id": 40,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "last"
-          ],
-          "fields": "/^converged ogs$/",
-          "values": false
-        },
-        "text": {},
-        "textMode": "auto"
-      },
-      "pluginVersion": "8.0.3",
-      "targets": [
-        {
-          "channel": "stream/ogs/azimuth",
-          "filter": {
-            "fields": [
-              "time",
-              "converged"
-            ]
-          },
-          "queryType": "measurements",
-          "refId": "A"
-        }
-      ],
-      "title": "AZ controller convergence",
-      "transparent": true,
-      "type": "stat"
-    },
-    {
-      "datasource": "-- Grafana --",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 0,
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "red",
-                  "index": 0,
-                  "text": "UNLOCKED"
-                },
-                "1": {
-                  "color": "green",
-                  "index": 1,
-                  "text": "LOCKED"
+                  "text": "ON-TARGET"
                 }
               },
               "type": "value"
@@ -2352,7 +2166,7 @@
         "h": 2,
         "w": 3,
         "x": 9,
-        "y": 18
+        "y": 15
       },
       "id": 41,
       "options": {
@@ -2364,7 +2178,7 @@
           "calcs": [
             "last"
           ],
-          "fields": "/^converged ogs$/",
+          "fields": "/^on_target ogs$/",
           "values": false
         },
         "text": {},
@@ -2377,7 +2191,7 @@
           "filter": {
             "fields": [
               "time",
-              "converged"
+              "on_target"
             ]
           },
           "queryType": "measurements",
@@ -2395,9 +2209,8 @@
           "color": {
             "mode": "thresholds"
           },
+          "decimals": 4,
           "mappings": [],
-          "max": 95,
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -2413,9 +2226,9 @@
       },
       "gridPos": {
         "h": 2,
-        "w": 3,
-        "x": 3,
-        "y": 20
+        "w": 2,
+        "x": 0,
+        "y": 17
       },
       "id": 36,
       "options": {
@@ -2441,14 +2254,14 @@
           "filter": {
             "fields": [
               "time",
-              "pos_error_degrees"
+              "pos_target_degrees"
             ]
           },
           "queryType": "measurements",
           "refId": "A"
         }
       ],
-      "title": "AZ control error",
+      "title": "setpoint",
       "transparent": true,
       "type": "stat"
     },
@@ -2459,15 +2272,30 @@
           "color": {
             "mode": "thresholds"
           },
+          "decimals": 4,
           "mappings": [],
-          "max": 95,
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "red",
                 "value": null
+              },
+              {
+                "color": "red",
+                "value": -0.1001
+              },
+              {
+                "color": "green",
+                "value": -0.1
+              },
+              {
+                "color": "green",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.1001
               }
             ]
           },
@@ -2477,11 +2305,11 @@
       },
       "gridPos": {
         "h": 2,
-        "w": 3,
-        "x": 9,
-        "y": 20
+        "w": 2,
+        "x": 2,
+        "y": 17
       },
-      "id": 37,
+      "id": 42,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -2501,7 +2329,7 @@
       "targets": [
         {
           "buffer": 300000,
-          "channel": "stream/ogs/elevation",
+          "channel": "stream/ogs/azimuth",
           "filter": {
             "fields": [
               "time",
@@ -2512,7 +2340,7 @@
           "refId": "A"
         }
       ],
-      "title": "EL control error",
+      "title": "error",
       "transparent": true,
       "type": "stat"
     },
@@ -2541,9 +2369,9 @@
       },
       "gridPos": {
         "h": 2,
-        "w": 3,
-        "x": 3,
-        "y": 22
+        "w": 2,
+        "x": 4,
+        "y": 17
       },
       "id": 11,
       "options": {
@@ -2576,7 +2404,149 @@
           "refId": "A"
         }
       ],
-      "title": "AZ control loop rate",
+      "title": "loop rate",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": "-- Grafana --",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 4,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "degree"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 2,
+        "x": 6,
+        "y": 17
+      },
+      "id": 43,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.0.3",
+      "targets": [
+        {
+          "buffer": 300000,
+          "channel": "stream/ogs/elevation",
+          "filter": {
+            "fields": [
+              "time",
+              "pos_target_degrees"
+            ]
+          },
+          "queryType": "measurements",
+          "refId": "A"
+        }
+      ],
+      "title": "setpoint",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": "-- Grafana --",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 4,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": -0.1001
+              },
+              {
+                "color": "green",
+                "value": -0.1
+              },
+              {
+                "color": "green",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.1001
+              }
+            ]
+          },
+          "unit": "degree"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 2,
+        "x": 8,
+        "y": 17
+      },
+      "id": 37,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.0.3",
+      "targets": [
+        {
+          "buffer": 300000,
+          "channel": "stream/ogs/elevation",
+          "filter": {
+            "fields": [
+              "time",
+              "pos_error_degrees"
+            ]
+          },
+          "queryType": "measurements",
+          "refId": "A"
+        }
+      ],
+      "title": "error",
       "transparent": true,
       "type": "stat"
     },
@@ -2609,9 +2579,9 @@
       },
       "gridPos": {
         "h": 2,
-        "w": 3,
-        "x": 9,
-        "y": 22
+        "w": 2,
+        "x": 10,
+        "y": 17
       },
       "id": 7,
       "options": {
@@ -2644,9 +2614,195 @@
           "refId": "A"
         }
       ],
-      "title": "EL control loop rate",
+      "title": "loop rate",
       "transparent": true,
       "type": "stat"
+    },
+    {
+      "datasource": "-- Grafana --",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "degree"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 19
+      },
+      "id": 34,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "buffer": 300000,
+          "channel": "stream/ogs/azimuth",
+          "filter": {
+            "fields": [
+              "time",
+              "D",
+              "I",
+              "P"
+            ]
+          },
+          "queryType": "measurements",
+          "refId": "A"
+        }
+      ],
+      "title": "AZ PID",
+      "transparent": true,
+      "type": "timeseries"
+    },
+    {
+      "datasource": "-- Grafana --",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "degree"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 19
+      },
+      "id": 35,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "buffer": 300000,
+          "channel": "stream/ogs/elevation",
+          "filter": {
+            "fields": [
+              "time",
+              "D",
+              "I",
+              "P"
+            ]
+          },
+          "queryType": "measurements",
+          "refId": "A"
+        }
+      ],
+      "title": "EL PID",
+      "transparent": true,
+      "type": "timeseries"
     }
   ],
   "refresh": "",

@@ -71,7 +71,7 @@ class GPS(threading.Thread):
 
     def getStatus(self):
         status = {
-                    "mode" : self.mode
+                    "mode" : self.mode,
                     "state" : self.state,
                     "sats_visible" : self.sats_visible,
                     "sats_used" : self.sats_used,
@@ -90,12 +90,12 @@ class GPS(threading.Thread):
                     "climb" : self.climb
                 }
 
-	def _shutdown_thread(self):
-		self.running = False
+    def _shutdown_thread(self):
+        self.running = False
 
 
-	def run(self):
-		while self.running:
+    def run(self):
+        while self.running:
             self.packet = gpsd.get_current()
             self.mode = self.packet.mode
             self.sats_visible = self.packet.sats

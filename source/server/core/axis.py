@@ -13,7 +13,7 @@ import PyTrinamic
 from PyTrinamic.connections.ConnectionManager import ConnectionManager
 from PyTrinamic.modules.TMCM1240.TMCM_1240 import TMCM_1240, _APs
 
-import core.PID as PID
+from core.PID import PID
 
 
 class AxisException(Exception):
@@ -26,6 +26,8 @@ class AxisState(enum.Enum):
     GOTO_VELOCITY = 2
     ABORT = 3
     TRACK = 4
+    OOL = 5
+    PARK = 6
 
 class AxisType(enum.Enum):
     AZIMUTH = 0
@@ -69,9 +71,10 @@ class Axis(threading.Thread):
         self.driver_temperature = 0
         self.driver_voltage = 0.0
 
-        self.pos_target_degrees = 25.0
+        self.pos_target_degrees = 0.0
+        self.pos_error_degrees = 0.0
 
-
+        self.previous_set_velocity = 0
 
         self.microsteps = 64.0 # usteps per pulse
         self.ppr = 200.0 # pulses per stepper revolution (full steps of the stepper motor)
@@ -87,12 +90,16 @@ class Axis(threading.Thread):
 
         self.configureDrive(self.config)
 
-        self.PID = PID.PID(P=25, I=35, D=0)
-        self.PID.SetPoint=0.0
-        self.PID.setSampleTime(0.01)
-        self.PID.setWindup(7)
+        self.pid = PID(Kp=self.config["f_kp_controller"], Ki=self.config["f_ki_controller"], Kd=self.config["f_kd_controller"])
+        self.pid.setSampleTime(self.config["f_looprate"])
+        self.pid.setWindup(self.microstepsToDegrees(self.config["i_axisparam_4"]))
 
+        # init flags
         self.running = True
+        self.out_of_limits = False
+        self.on_target = False
+
+        # set default states
         self.state = AxisState.IDLE
         self.nextState = AxisState.IDLE
 
@@ -123,7 +130,12 @@ class Axis(threading.Thread):
                         "driver_temperature"  : self.driver_temperature,
                         "driver_voltage"  : self.driver_voltage,
                         "pos_target_degrees" : self.pos_target_degrees,
-                        "pos_error_degrees" : self.pos_target_degrees - self.pos_internal_degrees
+                        "pos_error_degrees" : self.pos_error_degrees,
+                        "out_of_limits" : 1 if self.out_of_limits else 0,
+                        "P" : self.pid.PTerm,
+                        "I" : self.pid.Ki * self.pid.ITerm,
+                        "D" : self.pid.Kd * self.pid.DTerm,
+                        "on_target" : 1 if self.on_target else 0
                     }
         return status					
 
@@ -134,8 +146,8 @@ class Axis(threading.Thread):
 
 
     def degreesToMicrosteps(self, degrees):
-        m = degrees / self.degreesPerUstep
-        return round(m)
+        m = float(degrees) / self.degreesPerUstep
+        return int(m)
 
 
     def configureDrive(self, config):
@@ -146,9 +158,9 @@ class Axis(threading.Thread):
                 status = self.__executeAxisCommand(True, AxisState.IDLE, self.drive.setAxisParameter, parameter, value)
 
     def setPIDvalues(self, P, I, D):
-        self.PID.setKp(P)
-        self.PID.setKi(I)
-        self.PID.setKd(D)
+        self.pid.setKp(P)
+        self.pid.setKi(I)
+        self.pid.setKd(D)
 
     def setPosition(self, position_degrees):
         position_usteps = self.degreesToMicrosteps(position_degrees)
@@ -178,19 +190,17 @@ class Axis(threading.Thread):
             self.nextState = AxisState.TRACK
         
 
-
-    def abortGoto(self):
-        condition = (self.state == self.nextState == AxisState.GOTO_POSITION) or (self.state == self.nextState == AxisState.GOTO_VELOCITY)
-        return self.__executeAxisCommand(condition, AxisState.ABORT, self.drive.stop)
-
-
-    def emergencyStop(self):
-        condition = (self.state == self.nextState == AxisState.IDLE) or \
-                    (self.state == self.nextState == AxisState.GOTO_POSITION) or \
+    def abort(self):
+        condition = (self.state == self.nextState == AxisState.GOTO_POSITION) or \
                     (self.state == self.nextState == AxisState.GOTO_VELOCITY) or \
-                    (self.state == self.nextState == AxisState.TRACK)
+                    (self.state == self.nextState == AxisState.TRACK) or \
+                    (self.state == self.nextState == AxisState.PARK)
         return self.__executeAxisCommand(condition, AxisState.ABORT, self.drive.stop)
 
+    def park(self):
+        position_usteps = self.degreesToMicrosteps(0)
+        condition = (self.state == self.nextState == AxisState.IDLE) or (self.state == self.nextState == AxisState.OOL)
+        return self.__executeAxisCommand(condition, AxisState.PARK, self.drive.moveTo, position_usteps)        
 
     def __executeAxisCommand(self, stateCondition, nextStateOnSuccess, driveCommand, *driveCommandArgs):
 
@@ -293,7 +303,7 @@ class Axis(threading.Thread):
             self.errors += 1
 
 
-    def __PositionReached(self): 
+    def __positionReached(self): 
         
         try:
             positionReached = self.drive.positionReached()
@@ -327,22 +337,42 @@ class Axis(threading.Thread):
 
     def __setVelocity(self, velocity_degrees):
         velocity_usteps = self.degreesToMicrosteps(velocity_degrees)
-        try:
-            if abs(velocity_usteps) > self.config["i_axisparam_4"]:
-                velocity_usteps = int(math.copysign(self.config["i_axisparam_4"], velocity_usteps))
-            self.drive.rotate(velocity_usteps)
+        if velocity_usteps != self.previous_set_velocity:
+            try:
+                if (velocity_usteps < -self.config["i_axisparam_4"]):
+                    velocity_usteps = -self.config["i_axisparam_4"]
 
-        except Exception as e:
-            pass
+                elif (velocity_usteps > self.config["i_axisparam_4"]):
+                    velocity_usteps = self.config["i_axisparam_4"]
+
+                self.drive.rotate(velocity_usteps)
+                self.previous_set_velocity = velocity_usteps
+            except Exception as e:
+                pass
+
+    def __abort(self):
+        retries = 0
+        while retries < 10:
+            try:
+                self.drive.stop()
+                success = True
+                break
+
+            except Exception as e:
+                retries += 1
+                time.sleep(0.5)
+                success = False
+        return success     
 
 
     def stop(self):
-        self.emergencyStop()
+        self.abort()
         time.sleep(1)
         self.running = False
         
 
     def __pollTask(self):
+
         self.mutex.acquire()
         try:
             self.driver_status_flags = self.drive.getStatusFlags()
@@ -399,26 +429,41 @@ class Axis(threading.Thread):
             self.mutex.acquire()
             #===================
 
+            self.__getAxisStatus()
+
+
+            # fetch target position
+            if self.type == AxisType.AZIMUTH:
+                self.pos_target_degrees = self.parent.parent.object.azimuth
+            else:
+                self.pos_target_degrees = self.parent.parent.object.elevation
+
+
+            self.pos_error_degrees = self.pos_target_degrees - self.pos_internal_degrees  # error = setpoint - sensor value
+            if abs(self.pos_error_degrees) < self.config["f_target_threshold"]:
+                self.on_target = True
+            else:
+                self.on_target = False
+
             # state register
             #--------------------------
             self.state = self.nextState
             #--------------------------
 
-            self.__getAxisStatus()
-
-
+            # state dependent actions
             if self.state == AxisState.IDLE:
                 pass
 
             elif self.state == AxisState.GOTO_POSITION:
-                valid, positionReached = self.__PositionReached()
+                valid, positionReached = self.__positionReached()
 
                 if valid and positionReached:
                     self.nextState = AxisState.IDLE
                 else:
                     self.nextState = self.state
 
-            elif self.state == AxisState.GOTO_VELOCITY or self.state == AxisState.ABORT:
+
+            elif self.state == AxisState.GOTO_VELOCITY:
                 valid, isStopped = self.__isStopped()
 
                 if valid and isStopped:
@@ -426,26 +471,54 @@ class Axis(threading.Thread):
                 else:
                     self.nextState = self.state
 
+
+            elif self.state == AxisState.ABORT:
+                valid, isStopped = self.__isStopped()
+
+                if valid and isStopped:
+                    self.nextState = AxisState.IDLE
+                else:
+                    self.nextState = self.state
+
+
             elif self.state == AxisState.TRACK:
-                if self.type == AxisType.ELEVATION:
-                    if self.pos_target_degrees > 0 and self.pos_target_degrees < 90:
-                        self.PID.SetPoint = self.pos_target_degrees
-                        self.PID.update(self.pos_internal_degrees)
-                        if abs(self.PID.output) > 0:
-                            self.__setVelocity(self.PID.output)
-                        else:
-                            pass
-                    else:
-                        pass
+
+                self.pid.SetPoint = self.pos_target_degrees
+                self.pid.update(self.pos_internal_degrees)
+                if abs(self.pid.output) > 0:
+                    self.__setVelocity(self.pid.output)
+
+            elif self.state == AxisState.OOL:
+                valid, isStopped = self.__isStopped()
+
+                if valid and not isStopped:
+                    self.__abort()
+                else:
+                    pass
+
+            elif self.state == AxisState.PARK:
+                valid, positionReached = self.__positionReached()
+
+                if valid and positionReached:
+                    self.nextState = AxisState.IDLE
+                else:
+                    self.nextState = self.state
+
+            if (self.pos_internal_degrees < self.config["f_limit_min"] or self.pos_internal_degrees > self.config["f_limit_max"]):
+                self.out_of_limits = True # purely for indicative purposes
+                if not self.state == AxisState.PARK:
+                    # do not throw us back into OOL when we are parking from the OOL state
+                    # park mode is safe as regards the OOL because the home position (0,0) is hardcoded in the function
+                    self.nextState = AxisState.OOL
+            else:
+                self.out_of_limits = False
 
 
             #===================
             self.mutex.release()
             #===================
 
-            # adapt looprates based on state
-            if self.state == AxisState.TRACK:
-                time.sleep(0.01)
-            else:
-                time.sleep(0.01)
+
+            time.sleep(self.config["f_looprate"])
+
 

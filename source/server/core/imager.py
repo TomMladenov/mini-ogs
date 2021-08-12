@@ -8,6 +8,7 @@ import threading
 from threading import Timer
 from core.timer import CustomTimer
 import time
+import json
 
 import cv2
 import numpy as np
@@ -223,7 +224,7 @@ class Imager(threading.Thread):
             elif self.state == ImagerState.STREAMING:
                 self.img = self.camera.capture_video_frame(buffer_=None, filename=None, timeout=None)
                 result, buffer = cv2.imencode('.jpg', self.img, [int(cv2.IMWRITE_JPEG_QUALITY), self.config["i_transport_compression"]])
-                metadata = str({"config":self.config, "status": self.getStatus()})
+                metadata = json.dumps({"config":self.config, "status": self.getStatus()})
                 self.sender.send_image(metadata, buffer)
 
                 # calculate an average frames/sec using 10 loops

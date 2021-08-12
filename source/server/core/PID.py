@@ -30,18 +30,22 @@ More information about PID Controller: http://en.wikipedia.org/wiki/PID_controll
 """
 import time
 import logging
+import enum
+
 
 class PID:
 	"""PID Controller
 	"""
 
-	def __init__(self, P=0.2, I=0.0, D=0.0):
+	def __init__(self, Kp=0.2, 	Ki=0.0, Kd=0.0):
 
-		self.Kp = P
-		self.Ki = I
-		self.Kd = D
 
-		self.sample_time = 0.00
+		# the active controller values
+		self.Kp = Kp
+		self.Ki = Ki
+		self.Kd = Kd
+
+		self.sample_time = 0.0
 		self.current_time = time.time()
 		self.last_time = self.current_time
 
@@ -58,7 +62,7 @@ class PID:
 
 		# Windup Guard
 		self.int_error = 0.0
-		self.windup_guard = 20.0
+		self.windup_guard = 0.0
 
 		self.output = 0.0
 
