@@ -52,43 +52,46 @@ def ping():
     return {"success": True, "response": "pong"}
 
 
-@api.get("/server/job", tags=["general"])
-def get_job(jobid: str):
-    job = server.scheduler.get_job(jobid)
-
-    if job != None:
-        return 	{													
-                    "success" : True,								
-                    "job":											
-                        {											
-                            "id": job.id, 							
-                            "name": job.name, 						
-                            "function": job.func.__name__, 			
-                            "args": job.args							
-                        }											
-                }
-    else:
-        return {"success": False, "response": "No job found on the server with this ID!"} 
-
-
 @api.get("/server/jobs", tags=["general"])
-def get_jobs():
-    jobs = server.scheduler.get_jobs()
+def get_jobs(jobid: Optional[str] = None):
+    if jobid != None:
+        job = server.scheduler.get_job(jobid)
 
-    if jobs != []:
-        return 	{													
-                    "success" : True,								
-                    "jobs":	[{"id" : job.id, "name" : job.name, "function" : job.func.__name__, "args" : job.args} for job in jobs]										
-                }
+        if job != None:
+            return 	{													
+                        "success" : True,								
+                        "job":											
+                            {											
+                                "id": job.id, 							
+                                "name": job.name, 						
+                                "function": job.func.__name__, 			
+                                "args": job.args,
+                                "kwargs" : job.kwargs,
+                                "next_run_time" : str(job.next_run_time)							
+                            }											
+                    }
+        else:
+            return {"success": False, "response": "No job found on the server with this ID!"} 
     else:
-        return {"success": False, "response": "No jobs found on the server!"}
+        jobs = server.scheduler.get_jobs()
+
+        if jobs != []:
+            return 	{													
+                        "success" : True,								
+                        "jobs":	[{"id" : job.id, "name" : job.name, "function" : job.func.__name__, "args" : job.args, "kwargs" : job.kwargs, "next_run_time" : str(job.next_run_time)} for job in jobs]										
+                    }
+        else:
+            return {"success": False, "response": "No jobs found on the server!"}
 
 
-@api.put("/server/jobs/remove", tags=["general"])
+@api.delete("/server/jobs", tags=["general"])
 def remove_jobs():
     server.scheduler.remove_all_jobs()
     return {"success": True, "response": ""}
 
+@api.post("/server/mount/park", tags=["mount"])
+def park(t: Optional[str] = None):
+    return add_server_job(function=server.mount.park, args=None, kwargs=None, t=t)
 
 @api.post("/server/mount/position/goto", tags=["mount"])
 def goto_position(az: float, el: float, t: Optional[str] = None):
@@ -103,8 +106,8 @@ def set_position(az: float, el: float, t: Optional[str] = None):
 
 
 @api.post("/server/mount/velocity", tags=["mount"])
-def goto_velocity(az: float, el: float, t: Optional[str] = None):
-    keyword_arguments = {"az" : az, "el" : el}
+def goto_velocity(vel_az: float, vel_el: float, t: Optional[str] = None):
+    keyword_arguments = {"vel_az" : vel_az, "vel_el" : vel_el}
     return add_server_job(function=server.mount.gotoVelocity, args=None, kwargs=keyword_arguments, t=t)
 
 
@@ -125,9 +128,9 @@ def get_status():
     return server.mount.getStatus()
 
 
-@api.put("/server/mount/emergency_stop", tags=["mount"])
-def emergency_stop():
-    return add_server_job(function=server.mount.emergencyStop, args=None, kwargs=None, t=t)
+@api.put("/server/mount/abort", tags=["mount"])
+def abort():
+    return add_server_job(function=server.mount.abort, args=None, kwargs=None, t=None)
 
 
 @api.put("/server/imager/stream/start", tags=["imager"])
@@ -157,6 +160,10 @@ def set_flip(flip : int, t: Optional[str] = None):
     keyword_arguments = {"flip" : flip}
     return add_server_job(function=server.imager.setFlip, args=None, kwargs=keyword_arguments, t=t)
 
+@api.post("/server/object", tags=["object"])
+def set_object(name : str, l1: str, l2: str, t: Optional[str] = None):
+    keyword_arguments = {"name" : name, "l1" : l1, "l2" : l2}
+    return add_server_job(function=server.object.setTLE, args=None, kwargs=keyword_arguments, t=t)
 
 def add_server_job(function, args, kwargs, t):			
 
@@ -213,7 +220,7 @@ if __name__ == '__main__':
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)-8s M:%(module)s T:%(threadName)-10s  Msg:%(message)s (L%(lineno)d)')
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s M:%(module)s T:%(threadName)-10s  Msg:%(message)s (L%(lineno)d)')
     logging.Formatter.converter = time.gmtime
 
     log_config = uvicorn.config.LOGGING_CONFIG
