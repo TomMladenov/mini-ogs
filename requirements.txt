@@ -13,3 +13,5 @@ zwoasi==0.0.22
 pyzmq==22.1.0
 pytelegraf==0.3.3
 Flask-SocketIO==4.3.2
+gpsd-py3==0.3.0
+pyephem==9.99

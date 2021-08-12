@@ -7,10 +7,6 @@ services:
       - ./config/grafana/grafana.ini:/etc/grafana/grafana.ini
       - ./config/grafana/dashboard.json:/var/lib/grafana/dashboards/dashboard.json
 
-#  influxd:
-#    image: influxdb:1.8
-#    network_mode: "host"
-
   telegraf:
     image: telegraf-python:1.19.1
     network_mode: "host"
@@ -29,3 +25,24 @@ services:
       source: ./config/ogs-core
       target: /opt/config
     # entrypoint: /bin/bash # only during development, removing this entrypoint override will cause the server to start automatically
+  
+  #gps:
+  #  image: forcedinductionz/docker-gpsd
+  #  privileged: true
+  #  ports: 
+  #    - 2947:2947
+
+  #gps_simulator:
+  #  image: forcedinductionz/docker-gpsd
+  #  privileged: true
+  #  ports: 
+  #    - 2948:2948
+  #  command: sh -c "gpsfake -p 2948 /opt/gps.log"
+  #  volumes:
+  #    - ./config/gpsfake/gps.log:/opt/gps.log
+  
+
+
+
+
+  
