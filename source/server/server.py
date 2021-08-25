@@ -18,7 +18,6 @@ from core.axis import Axis
 from core.imager import Imager, ImagerType
 from core.mount import Mount
 from core.object import Object
-from core.gps import GPS
 from telegraf.client import TelegrafClient
 
 def str2bool(v):
@@ -65,10 +64,7 @@ class Server(object):
         self.telegraf = TelegrafClient(host='localhost', port=8092)
 
         self.object = Object(self, config = dict(load_config(items=self.configurator.items("object"))), logging_level=logging.DEBUG)
-        self.object.start()
 
-        self.gps = None
-        self.guider = None
         self.imager = Imager(self, type=ImagerType.MAIN, config = dict(load_config(items=self.configurator.items("imager"))), logging_level=logging.DEBUG)
         self.imager.start()
 

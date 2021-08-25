@@ -13,6 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apschedulerui.web import SchedulerUI
 
 from server import Server
+from typing import List
 
 import sys
 import os
@@ -93,6 +94,14 @@ def remove_jobs():
 def park(t: Optional[str] = None):
     return add_server_job(function=server.mount.park, args=None, kwargs=None, t=t)
 
+@api.post("/server/mount/calibrate", tags=["mount"])
+def calibrate(t: Optional[str] = None):
+    return add_server_job(function=server.mount.calibrate, args=None, kwargs=None, t=t)
+
+@api.post("/server/mount/model", tags=["mount"])
+def set_model_parameters(params : List[float]):
+    return server.mount.setPointingModel(params)
+
 @api.post("/server/mount/position/goto", tags=["mount"])
 def goto_position(az: float, el: float, t: Optional[str] = None):
     keyword_arguments = {"az" : az, "el" : el}
@@ -133,37 +142,64 @@ def abort():
     return add_server_job(function=server.mount.abort, args=None, kwargs=None, t=None)
 
 
-@api.put("/server/imager/stream/start", tags=["imager"])
-def start_streaming(t: Optional[str] = None):
+@api.put("/server/imager/stream", tags=["imager"])
+def start_stream(t: Optional[str] = None):
     return add_server_job(function=server.imager.startStreaming, args=None, kwargs=None, t=t)
 
+@api.put("/server/imager/still", tags=["imager"])
+def start_still(t: Optional[str] = None):
+    return add_server_job(function=server.imager.startStill, args=None, kwargs=None, t=t)
 
-@api.put("/server/imager/stream/stop", tags=["imager"])
-def stop_streaming(t: Optional[str] = None):
-    return add_server_job(function=server.imager.stopStreaming, args=None, kwargs=None, t=t)
+@api.put("/server/imager/idle", tags=["imager"])
+def set_idle(t: Optional[str] = None):
+    return add_server_job(function=server.imager.setIdle, args=None, kwargs=None, t=t)
 
+@api.put("/server/imager/still/fits", tags=["imager"])
+def take_fits(suffix : str, t: Optional[str] = None):
+    keyword_arguments = {"suffix" : suffix}
+    return add_server_job(function=server.imager.captureFits, args=None, kwargs=keyword_arguments, t=t)
 
 @api.post("/server/imager/exposure", tags=["imager"])
 def set_exposure(exposure : int, t: Optional[str] = None):
     keyword_arguments = {"exposure" : exposure}
     return add_server_job(function=server.imager.setExposure, args=None, kwargs=keyword_arguments, t=t)
 
-
 @api.post("/server/imager/gain", tags=["imager"])
 def set_gain(gain : int, t: Optional[str] = None):
     keyword_arguments = {"gain" : gain}
     return add_server_job(function=server.imager.setGain, args=None, kwargs=keyword_arguments, t=t)
-
 
 @api.post("/server/imager/flip", tags=["imager"])
 def set_flip(flip : int, t: Optional[str] = None):
     keyword_arguments = {"flip" : flip}
     return add_server_job(function=server.imager.setFlip, args=None, kwargs=keyword_arguments, t=t)
 
-@api.post("/server/object", tags=["object"])
+@api.post("/server/imager/compression", tags=["imager"])
+def set_transport_compression(compression : int, t: Optional[str] = None):
+    keyword_arguments = {"compression" : compression}
+    return add_server_job(function=server.imager.setTransportCompression, args=None, kwargs=keyword_arguments, t=t)
+
+
+@api.post("/server/object/tle", tags=["object"])
 def set_object(name : str, l1: str, l2: str, t: Optional[str] = None):
     keyword_arguments = {"name" : name, "l1" : l1, "l2" : l2}
     return add_server_job(function=server.object.setTLE, args=None, kwargs=keyword_arguments, t=t)
+
+@api.get("/server/object/bodies", tags=["object"])
+def get_bodies():
+    return server.object.getBodies()
+
+@api.get("/server/object/stars", tags=["object"])
+def get_stars():
+    return server.object.getStars()
+
+@api.post("/server/object/body", tags=["object"])
+def set_body(name : str):
+    return server.object.setBody(name)
+
+@api.post("/server/object/star", tags=["object"])
+def set_star(name : str):
+    return server.object.setStar(name)
 
 def add_server_job(function, args, kwargs, t):			
 

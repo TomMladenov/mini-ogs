@@ -9,11 +9,22 @@ from threading import Timer
 from core.timer import CustomTimer
 import time
 import json
+import datetime
+
+from astropy.io import fits
+from astropy.coordinates import SkyCoord, EarthLocation
+from astropy import coordinates as coord
+from astropy.coordinates.tests.utils import randomly_sample_sphere
+from astropy.time import Time
+from astropy import units as u
 
 import cv2
 import numpy as np
 import imagezmq
 import zwoasi as asi
+
+class ImagerException(Exception):
+    pass
 
 
 class ImagerType(enum.Enum):
@@ -24,6 +35,7 @@ class ImagerType(enum.Enum):
 class ImagerState(enum.Enum):
     IDLE=0
     STREAMING=1
+    STILL=2
 
 
 class Imager(threading.Thread):
@@ -42,6 +54,12 @@ class Imager(threading.Thread):
 
         self.fps = 0
         self.temperature = 0
+
+        self.platescale_x = (180.0/np.pi)*(1/self.config["f_focal"])*self.config["f_pitch_x"]*self.config["i_bins"] #degrees per pixel
+        self.platescale_x_arcsec = self.platescale_x * 3600.0 # arcseconds per pixel
+
+        self.platescale_y = (180.0/np.pi)*(1/self.config["f_focal"])*self.config["f_pitch_y"]*self.config["i_bins"] #degrees per pixel
+        self.platescale_y_arcsec = self.platescale_y * 3600.0 # arcseconds per pixel
 
         self.prevLoopTime = time.time()
         self.currentLoopTime = time.time()
@@ -150,34 +168,122 @@ class Imager(threading.Thread):
 
         return returnMessage
 
+    # operating modes
 
     def startStreaming(self):
         condition = (self.state == self.nextState == ImagerState.IDLE)
         self.__executeCameraCommand(condition, ImagerState.STREAMING, self.camera.start_video_capture)
 
+    def startStill(self):
+        condition = (self.state == self.nextState == ImagerState.IDLE)
+        self.__executeCameraCommand(condition, ImagerState.STILL, self.camera.stop_video_capture)
 
-    def stopStreaming(self):
-        condition = (self.state == self.nextState == ImagerState.STREAMING)
+    def setIdle(self):
+        condition = (self.state == self.nextState == ImagerState.STREAMING) or (self.state == self.nextState == ImagerState.STILL)
         self.__executeCameraCommand(condition, ImagerState.IDLE, self.camera.stop_video_capture)
 
 
     def setExposure(self, exposure):
-        condition = (self.state == self.nextState == ImagerState.IDLE) or (self.state == self.nextState == ImagerState.STREAMING)
-        self.__executeCameraCommand(condition, self.state, self.camera.set_control_value, asi.ASI_EXPOSURE, exposure)
+        condition = (self.state == self.nextState == ImagerState.IDLE) or \
+                    (self.state == self.nextState == ImagerState.STREAMING) or \
+                    (self.state == self.nextState == ImagerState.STILL)
+        result = self.__executeCameraCommand(condition, self.state, self.camera.set_control_value, asi.ASI_EXPOSURE, exposure)
+        if result["success"]:
+            self.config["i_exposure"] = exposure
 
 
     def setGain(self, gain):
-        condition = (self.state == self.nextState == ImagerState.IDLE) or (self.state == self.nextState == ImagerState.STREAMING)
-        self.__executeCameraCommand(condition, self.state, self.camera.set_control_value, asi.ASI_GAIN, gain)
-
+        condition = (self.state == self.nextState == ImagerState.IDLE) or \
+                    (self.state == self.nextState == ImagerState.STREAMING) or \
+                    (self.state == self.nextState == ImagerState.STILL)
+        result = self.__executeCameraCommand(condition, self.state, self.camera.set_control_value, asi.ASI_GAIN, gain)
+        if result["success"]:
+            self.config["i_gain"] = gain
 
     def setFlip(self, flip):
-        condition = (self.state == self.nextState == ImagerState.IDLE) or (self.state == self.nextState == ImagerState.STREAMING)
-        self.__executeCameraCommand(condition, self.state, self.camera.set_control_value, asi.ASI_FLIP, flip)
+        condition = (self.state == self.nextState == ImagerState.IDLE) or \
+                    (self.state == self.nextState == ImagerState.STREAMING) or \
+                    (self.state == self.nextState == ImagerState.STILL)
+        result = self.__executeCameraCommand(condition, self.state, self.camera.set_control_value, asi.ASI_FLIP, flip)
+        if result["success"]:
+            self.config["i_flip"] = flip
 
+    def setTransportCompression(self, compression):
+        if compression > 10 and compression < 100:
+            self.config["i_transport_compression"] = compression
+        else:
+            raise ImagerException("The value is not in the allowed range")
+
+    def captureFits(self, suffix):
+        if (self.state == self.nextState == ImagerState.STILL):
+
+            self.mutex.acquire()
+            t0 = float(time.time())
+            img = self.camera.capture(buffer_=None, filename=None)
+            t = (float(time.time())+t0)/2.0 # the exact time of the middle of the frame
+
+            #emit the frame via zmq to allow live monitoring
+            result, buffer = cv2.imencode('.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), self.config["i_transport_compression"]])
+            metadata = json.dumps({"config":self.config, "status": self.getStatus()})
+            self.sender.send_image(metadata, buffer)
+
+            self.mutex.release()
+
+            formatted_timestamp = datetime.datetime.fromtimestamp(t).strftime('%Y%m%d_%H%M%S')
+            fname = "{}_{}.fits".format(formatted_timestamp, suffix)
+
+            # Format header
+            hdr = fits.Header()
+            hdr['DATE-OBS'] = datetime.datetime.fromtimestamp(t).strftime("%Y-%m-%dT%H:%M:%S.%f")
+            hdr['EXPTIME'] = self.config["i_exposure"]
+            hdr['CRPIX1'] = float(self.config["i_width"])/2.0
+            hdr['CRPIX2'] = float(self.config["i_height"])/2.0
+            hdr['OBJECT'] = suffix
+            hdr['BITPIX'] = 8
+            hdr['PIXSCAL1'] = self.platescale_x_arcsec
+            hdr['PIXSCAL2'] = self.platescale_y_arcsec
+
+            #lat, lon, alt = self.parent.gps.getPosition()
+            hdr['GEOD_LAT'] = self.parent.mount.config["f_lat"]
+            hdr['GEOD_LON'] = self.parent.mount.config["f_lon"]
+            hdr['GEOD_ALT'] = self.parent.mount.config["f_alt"]
+            hdr['CENTAZ'] = self.parent.mount.azimuth.pos_mount_degrees
+            hdr['CENTALT'] = self.parent.mount.elevation.pos_mount_degrees
+            hdr['CRVAL1'] = 0.0
+            hdr['CRVAL2'] = 0.0
+            hdr['CD1_1'] = 1.0/3600.0
+            hdr['CD1_2'] = 0.0
+            hdr['CD2_1'] = 0.0
+            hdr['CD2_2'] = 1.0/3600.0
+            hdr['CUNIT1'] = "deg"
+            hdr['CUNIT2'] = "deg"
+            hdr['CTYPE1'] = "RA---TAN"
+            hdr['CTYPE2'] = "DEC--TAN"
+            hdr['CRRES1'] = 0.0
+            hdr['CRRES2'] = 0.0
+            hdr['EQUINOX'] = 2000.0
+            hdr['RADECSYS'] = "ICRS"
+            hdr['COSPAR'] = 0
+            hdr['OBSERVER'] = 0
+            hdr['CENTAZ_M'] = self.parent.mount.azimuth.pos_mount_degrees
+            hdr['CENTEL_M'] = self.parent.mount.elevation.pos_mount_degrees
+            hdr['CENTAZ_C'] = self.parent.mount.azimuth.pos_celestial_degrees
+            hdr['CENTEL_C'] = self.parent.mount.elevation.pos_celestial_degrees
+            hdr['AZ_ENC'] = self.parent.mount.azimuth.pos_encoder_degrees
+            hdr['EL_ENC'] = self.parent.mount.elevation.pos_encoder_degrees            
+            hdr['CALIB'] = str(self.parent.mount.model_active)
+            hdr['CALIB_D'] = str(self.parent.mount.pm.values())
+
+            hdr['TEMPERATURE'] = self.temperature
+
+            hdu = fits.PrimaryHDU(data=img, header=hdr)
+            dest = self.config["s_fits_storage_dir"] + "/" + fname
+
+            hdu.writeto(dest)
+            return dest
 
     def stop(self):
-        self.stopStreaming()
+        self.setIdle()
         self.poll_timer.cancel()
         self.publish_timer.cancel()
         self.running = False
@@ -221,6 +327,9 @@ class Imager(threading.Thread):
             if self.state == ImagerState.IDLE:
                 self.fps = 0
 
+            elif self.state == ImagerState.STILL:
+                self.fps = 0
+
             elif self.state == ImagerState.STREAMING:
                 self.img = self.camera.capture_video_frame(buffer_=None, filename=None, timeout=None)
                 result, buffer = cv2.imencode('.jpg', self.img, [int(cv2.IMWRITE_JPEG_QUALITY), self.config["i_transport_compression"]])
@@ -238,7 +347,7 @@ class Imager(threading.Thread):
             # release the mutex
             self.mutex.release()
 
-            if self.state == ImagerState.IDLE:
+            if self.state == ImagerState.IDLE or self.state == ImagerState.STILL:
                 time.sleep(1)
             else:
                 pass

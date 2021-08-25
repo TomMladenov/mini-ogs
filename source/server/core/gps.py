@@ -24,7 +24,7 @@ class GPSstate(enum.Enum):
 class GPS(threading.Thread):
 
     def __init__(self, parent, config, logging_level):
-        super(Imager, self).__init__()
+        super(GPS, self).__init__()
 
         logging.basicConfig(level=logging_level, format='%(asctime)s %(levelname)-8s M:%(module)s T:%(threadName)-10s  Msg:%(message)s (L%(lineno)d)')
         logging.Formatter.converter = time.gmtime
@@ -55,6 +55,7 @@ class GPS(threading.Thread):
         self.alt = 0.0
         self.climb = 0.0
 
+        
         gpsd.connect(host=self.config["s_host"], port=self.config["i_port"])
 
         self.publish_timer = CustomTimer(self.config["f_publish_interval"], self.__publishTask).start()

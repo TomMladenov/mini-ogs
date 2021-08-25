@@ -9,16 +9,14 @@ import ephem
 from core.timer import CustomTimer
 
 
-class Object(threading.Thread):
+class Object():
 
     def __init__(self, parent, config, logging_level):
-        super(Object, self).__init__()
         logging.basicConfig(level=logging_level, format='%(asctime)s %(levelname)-8s M:%(module)s T:%(threadName)-10s  Msg:%(message)s (L%(lineno)d)')
         logging.Formatter.converter = time.gmtime
 
         self.parent = parent
         self.config = config
-        self.running = True
 
         self.name = self.config["s_name"]
 
@@ -42,55 +40,91 @@ class Object(threading.Thread):
         self.west_east_correction_active = False
         self.azimuth_previous = 180.0
 
+    def setBody(self, name):
+        try:
+            self.object = getattr(ephem, name)
+            self.east_west_correction_active = False
+            self.west_east_correction_active = False
+            self.azimuth_previous = 180.0
+            return {"success": True, "message": ""}
+        except Exception as e:
+            self.object = None
+            return {"success": False, "message": str(e)}
+
+    def getBodies(self):
+        return [name for _0, _1, name in ephem._libastro.builtin_planets()]
+
+    def setStar(self, name):
+        try:
+            self.object = ephem.star(name)
+            self.east_west_correction_active = False
+            self.west_east_correction_active = False
+            self.azimuth_previous = 180.0
+            return {"success": True, "message": ""}
+        except Exception as e:
+            self.object = None
+            return {"success": False, "message": str(e)}
+        
+    def getStars(self):
+        return [star.split(",")[0] for star in ephem.stars.db.split("\n")]
+
 
     def getPosition(self, t=None):
-        if t != None:
-            self.observer.date = t
+        if self.object != None:
+            if t != None:
+                self.observer.date = t
+            else:
+                self.observer.date = datetime.datetime.utcnow()
+
+            #lat, lon, elev = self.parent.gps.getPosition()
+            #self.observer.lon = lon
+            #self.observer.lat = lat
+            #self.observer.elevation = elev
+
+            self.observer.lat = self.parent.mount.config["f_lat"] * ephem.degree
+            self.observer.lon = self.parent.mount.config["f_lon"] * ephem.degree
+            self.observer.elevation = self.parent.mount.config["f_alt"]
+
+            self.object.compute(self.observer)
+
+            # fetch object attributes
+            azimuth = np.degrees(self.object.az) # not the final azimuth
+            self.elevation = np.degrees(self.object.alt)
+            self.ra = np.degrees(self.object.ra)
+            self.dec = np.degrees(self.object.dec)
+
+            # determine azimuth correction
+            if  self.azimuth_previous > 350.0 and azimuth < 5.0:
+                self.west_east_correction_active = True
+                self.east_west_correction_active = False
+            elif self.azimuth_previous < 5.0 and azimuth > 350.0:
+                self.west_east_correction_active = False
+                self.east_west_correction_active = True
+
+            # apply azimuth correction
+            if self.west_east_correction_active:
+                self.azimuth = azimuth + 360.0
+            elif self.east_west_correction_active:
+                self.azimuth = azimuth - 360.0
+            else:
+                self.azimuth = azimuth   
+
+            self.azimuth_previous = self.azimuth
+
+            return self.azimuth, self.elevation 
         else:
-            self.observer.date = datetime.datetime.utcnow()
+            return 0.0, 0.0
 
-        #lat, lon, elev = self.parent.gps.getPosition()
-        #self.observer.lon = lon
-        #self.observer.lat = lat
-        #self.observer.elevation = elev
-
-        self.observer.lon = 5.0 * ephem.degree
-        self.observer.lat = 50.0 * ephem.degree
-        self.observer.elevation = 30.0
-
-        self.object.compute(self.observer)
-
-        # fetch object attributes
-        azimuth = np.degrees(self.object.az) # not the final azimuth
-        self.elevation = np.degrees(self.object.alt)
-        self.ra = np.degrees(self.object.ra)
-        self.dec = np.degrees(self.object.dec)
-
-        # determine azimuth correction
-        if  self.azimuth_previous > 350.0 and azimuth < 5.0:
-            self.west_east_correction_active = True
-            self.east_west_correction_active = False
-        elif self.azimuth_previous < 5.0 and azimuth > 350.0:
-            self.west_east_correction_active = False
-            self.east_west_correction_active = True
-
-        # apply azimuth correction
-        if self.west_east_correction_active:
-            self.azimuth = azimuth + 360.0
-        elif self.east_west_correction_active:
-            self.azimuth = azimuth - 360.0
+    def objectLoaded(self):
+        if self.object != None:
+            return True
         else:
-            self.azimuth = azimuth   
-
-        self.azimuth_previous = self.azimuth
-
-        return self.azimuth, self.elevation 
-
+            return False
 
 
     def getStatus(self):
         return {
-                    "name" : self.object.catalog_number if self.object != None else "",
+                    "name" : self.object.name if self.object != None else "",
                     "azimuth" : self.azimuth,
                     "elevation" : self.elevation,
                     "west_east_correction_active" : 1 if self.west_east_correction_active else 0,
@@ -100,16 +134,6 @@ class Object(threading.Thread):
                 }
 
     def __publishTask(self):
+        self.getPosition()
         current_status = self.getStatus()
         self.parent.telegraf.metric(self.name, current_status)
-
-    def stop(self):
-        self.running = False
-
-    def run(self):
-        while self.running:
-            while self.object != None:
-                self.getPosition()
-                time.sleep(0.015)
-            time.sleep(1)
-
