@@ -56,8 +56,9 @@ class Axis(threading.Thread):
         self.looptime = 0.0
         self.looprate = 0.0
 
-        self.pos_internal_microsteps = 0
-        self.pos_internal_degrees = 0.0
+        self.pos_mount_microsteps = 0
+        self.pos_mount_degrees = 0.0
+        self.pos_celestial_degrees = 0.0
 
         self.pos_encoder_microsteps = 0
         self.pos_encoder_degrees = 0.0
@@ -119,8 +120,9 @@ class Axis(threading.Thread):
                         "last_command"  : self.last_command,
                         "looptime" : self.looptime,
                         "looprate" : self.looprate,
-                        "pos_internal_microsteps" : self.pos_internal_microsteps,
-                        "pos_internal_degrees" : self.pos_internal_degrees,
+                        "pos_mount_microsteps" : self.pos_mount_microsteps,
+                        "pos_mount_degrees" : self.pos_mount_degrees,
+                        "pos_celestial_degrees" : self.pos_celestial_degrees,
                         "pos_encoder_microsteps" : self.pos_encoder_microsteps,
                         "pos_encoder_degrees" : self.pos_encoder_degrees,
                         "vel_internal_microsteps" : self.vel_internal_microsteps,
@@ -135,7 +137,8 @@ class Axis(threading.Thread):
                         "P" : self.pid.PTerm,
                         "I" : self.pid.Ki * self.pid.ITerm,
                         "D" : self.pid.Kd * self.pid.DTerm,
-                        "on_target" : 1 if self.on_target else 0
+                        "on_target" : 1 if self.on_target else 0,
+                        "correction_active" : 1 if self.parent.model_active else 0
                     }
         return status					
 
@@ -170,8 +173,8 @@ class Axis(threading.Thread):
         self.__executeAxisCommand(condition, AxisState.IDLE, self.drive.setAxisParameter, _APs.EncoderPosition, position_usteps)
 
 
-    def gotoPosition(self, position_degrees):
-        position_usteps = self.degreesToMicrosteps(position_degrees)
+    def gotoPosition(self, position_degrees_mount):
+        position_usteps = self.degreesToMicrosteps(position_degrees_mount)
         condition = (self.state == self.nextState == AxisState.IDLE)
         return self.__executeAxisCommand(condition, AxisState.GOTO_POSITION, self.drive.moveTo, position_usteps)
 
@@ -272,8 +275,14 @@ class Axis(threading.Thread):
     def __getAxisStatus(self):
 
         try:
-            self.pos_internal_microsteps = self.drive.getActualPosition()
-            self.pos_internal_degrees = self.microstepsToDegrees(self.pos_internal_microsteps)
+            self.pos_mount_microsteps = self.drive.getActualPosition()
+            self.pos_mount_degrees = self.microstepsToDegrees(self.pos_mount_microsteps)
+
+            if self.parent.model_active:
+                self.pos_celestial_degrees = self.parent.mountToCelestial(self.type, self.pos_mount_degrees)
+            else:
+                self.pos_celestial_degrees = self.pos_mount_degrees
+
             self.success += 1
 
         except Exception as e:
@@ -282,7 +291,16 @@ class Axis(threading.Thread):
 
 
         try:
-            self.pos_encoder_microsteps = self.drive.getAxisParameter(_APs.EncoderPosition)
+            pos_encoder_microsteps = self.drive.getAxisParameter(_APs.EncoderPosition)
+
+            if pos_encoder_microsteps >= 2**31:
+                pos_encoder_microsteps -= 2**32
+                
+            if self.type == AxisType.AZIMUTH:
+                self.pos_encoder_microsteps = -pos_encoder_microsteps
+            else:
+                self.pos_encoder_microsteps = pos_encoder_microsteps            
+
             self.pos_encoder_degrees = self.microstepsToDegrees(self.pos_encoder_microsteps)
             self.success += 1
 
@@ -431,15 +449,16 @@ class Axis(threading.Thread):
 
             self.__getAxisStatus()
 
+            az_target, el_target = self.parent.parent.object.getPosition()
 
             # fetch target position
             if self.type == AxisType.AZIMUTH:
-                self.pos_target_degrees = self.parent.parent.object.azimuth
+                self.pos_target_degrees = az_target # in celestial reference frame
             else:
-                self.pos_target_degrees = self.parent.parent.object.elevation
+                self.pos_target_degrees = el_target # in celestial reference frame
 
 
-            self.pos_error_degrees = self.pos_target_degrees - self.pos_internal_degrees  # error = setpoint - sensor value
+            self.pos_error_degrees = self.pos_target_degrees - self.pos_celestial_degrees  # error = setpoint - sensor value
             if abs(self.pos_error_degrees) < self.config["f_target_threshold"]:
                 self.on_target = True
             else:
@@ -484,7 +503,7 @@ class Axis(threading.Thread):
             elif self.state == AxisState.TRACK:
 
                 self.pid.SetPoint = self.pos_target_degrees
-                self.pid.update(self.pos_internal_degrees)
+                self.pid.update(self.pos_celestial_degrees)
                 if abs(self.pid.output) > 0:
                     self.__setVelocity(self.pid.output)
 
@@ -504,7 +523,7 @@ class Axis(threading.Thread):
                 else:
                     self.nextState = self.state
 
-            if (self.pos_internal_degrees < self.config["f_limit_min"] or self.pos_internal_degrees > self.config["f_limit_max"]):
+            if (self.pos_mount_degrees < self.config["f_limit_min"] or self.pos_mount_degrees > self.config["f_limit_max"]):
                 self.out_of_limits = True # purely for indicative purposes
                 if not self.state == AxisState.PARK:
                     # do not throw us back into OOL when we are parking from the OOL state
