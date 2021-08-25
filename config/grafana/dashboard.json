@@ -3277,7 +3277,7 @@
               }
             ]
           },
-          "unit": "degree"
+          "unit": "rotdegs"
         },
         "overrides": []
       },
@@ -3370,7 +3370,7 @@
               }
             ]
           },
-          "unit": "degree"
+          "unit": "rotdegs"
         },
         "overrides": []
       },
