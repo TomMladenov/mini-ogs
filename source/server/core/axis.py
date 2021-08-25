@@ -496,6 +496,7 @@ class Axis(threading.Thread):
 
                 if valid and isStopped:
                     self.nextState = AxisState.IDLE
+                    self.pid.clear()
                 else:
                     self.nextState = self.state
 
