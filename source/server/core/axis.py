@@ -170,7 +170,10 @@ class Axis(threading.Thread):
         condition = (self.state == self.nextState == AxisState.IDLE)
         self.__executeAxisCommand(condition, AxisState.IDLE, self.drive.setActualPosition, position_usteps)
         self.__executeAxisCommand(condition, AxisState.IDLE, self.drive.setTargetPosition, position_usteps)
-        self.__executeAxisCommand(condition, AxisState.IDLE, self.drive.setAxisParameter, _APs.EncoderPosition, position_usteps)
+        if self.type == AxisType.AZIMUTH:
+            self.__executeAxisCommand(condition, AxisState.IDLE, self.drive.setAxisParameter, _APs.EncoderPosition, -position_usteps)
+        else:
+            self.__executeAxisCommand(condition, AxisState.IDLE, self.drive.setAxisParameter, _APs.EncoderPosition, position_usteps)
 
 
     def gotoPosition(self, position_degrees_mount):
