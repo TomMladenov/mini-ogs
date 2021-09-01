@@ -66,6 +66,33 @@ class Imager(threading.Thread):
 
         self.sender = imagezmq.ImageSender("tcp://{}:{}".format(self.config["s_streamhost"], self.config["i_streamport"]), REQ_REP=False)
 
+        # blob detector configuration
+        self.object_detection_enabled = self.config["b_object_detection_enabled"]
+        self.params = cv2.SimpleBlobDetector_Params()
+        self.params.minThreshold = self.config["i_blob_minthreshold"]
+        self.params.maxThreshold = self.config["i_blob_maxthreshold"]
+        self.params.thresholdStep = self.config["i_blob_thresholdstep"]
+        self.params.blobColor = self.config["i_blob_color"]
+        self.params.filterByArea = self.config["b_blob_filterbyarea"]
+        self.params.minArea = self.config["i_blob_minarea"]
+        self.params.filterByCircularity = self.config["b_blob_filterbycircularity"]
+        self.params.filterByConvexity = self.config["b_blob_filterbyconvexity"]
+        self.params.filterByInertia = self.config["b_blob_filterbyinertia"]
+        self.params.minInertiaRatio = self.config["i_blob_mininertiaratio"]
+        self.params.maxInertiaRatio = self.config["i_blob_maxinertiaratio"]
+        self.blob_detector = cv2.SimpleBlobDetector_create(self.params)
+
+        self.object_x = self.config["i_width"]/2.0
+        self.object_y = self.config["i_height"]/2.0
+
+        self.object_offset_x = self.object_x - self.config["i_width"]/2.0
+        self.object_offset_y = self.object_y - self.config["i_height"]/2.0
+
+        # below ofcourse assumes the camera frame x=azimuth, y=elevation
+        self.object_offset_az =  self.object_offset_x * self.platescale_x
+        self.object_offset_el = self.object_offset_y * self.platescale_y
+
+
         # drive mutex
         self.mutex = threading.Lock()
 
@@ -208,6 +235,11 @@ class Imager(threading.Thread):
         if result["success"]:
             self.config["i_flip"] = flip
 
+    def enableBlobDetector(self, state):
+        self.object_detection_enabled = state
+        self.config["b_object_detection_enabled"] = state
+
+
     def setTransportCompression(self, compression):
         if compression > 10 and compression < 100:
             self.config["i_transport_compression"] = compression
@@ -293,8 +325,14 @@ class Imager(threading.Thread):
         status =    {
                         "state" : ImagerState(self.state).name,
                         "fps" : self.fps,
-                        "temperature" : self.temperature
-                    }
+                        "temperature" : self.temperature,
+                        "object_x" : self.object_x,
+                        "object_y" : self.object_y,
+                        "object_offset_x" : self.object_offset_x,
+                        "object_offset_y" : self.object_offset_y,
+                        "object_offset_az" : self.object_offset_az,
+                        "object_offset_el" : self.object_offset_el
+                    } 
         return status
 
     # functions called internally by the task timers
@@ -333,6 +371,31 @@ class Imager(threading.Thread):
             elif self.state == ImagerState.STREAMING:
                 self.img = self.camera.capture_video_frame(buffer_=None, filename=None, timeout=None)
                 result, buffer = cv2.imencode('.jpg', self.img, [int(cv2.IMWRITE_JPEG_QUALITY), self.config["i_transport_compression"]])
+
+                if self.object_detection_enabled:
+                    keypoints = self.blob_detector.detect(self.img)
+                    if keypoints != []:
+                        target = keypoints[0]
+                        self.object_x = target.pt[0]
+                        self.object_y = target.pt[1]
+
+                    else:
+                        self.object_x = self.config["i_width"]/2.0
+                        self.object_y = self.config["i_height"]/2.0
+                
+                else:
+                    self.object_x = self.config["i_width"]/2.0
+                    self.object_y = self.config["i_height"]/2.0
+
+
+                self.object_offset_x = self.object_x - self.config["i_width"]/2.0
+                self.object_offset_y = self.object_y - self.config["i_height"]/2.0
+
+                # below ofcourse assumes the camera frame x=azimuth, y=elevation
+                self.object_offset_az =  self.object_offset_x * self.platescale_x
+                self.object_offset_el = self.object_offset_y * self.platescale_y
+
+
                 metadata = json.dumps({"config":self.config, "status": self.getStatus()})
                 self.sender.send_image(metadata, buffer)
 

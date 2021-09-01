@@ -179,6 +179,10 @@ def set_transport_compression(compression : int, t: Optional[str] = None):
     keyword_arguments = {"compression" : compression}
     return add_server_job(function=server.imager.setTransportCompression, args=None, kwargs=keyword_arguments, t=t)
 
+@api.put("/server/imager/blob_detector/state", tags=["imager"])
+def enable_blob_detector(state : bool, t: Optional[str] = None):
+    keyword_arguments = {"state" : state}
+    return add_server_job(function=server.imager.enableBlobDetector, args=None, kwargs=keyword_arguments, t=t)
 
 @api.post("/server/object/tle", tags=["object"])
 def set_object(name : str, l1: str, l2: str, t: Optional[str] = None):
