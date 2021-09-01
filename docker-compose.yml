@@ -24,6 +24,9 @@ services:
     - type: bind
       source: ./config/ogs-core
       target: /opt/config
+    - type: bind
+      source: ./data/
+      target: /opt/data/      
     # entrypoint: /bin/bash # only during development, removing this entrypoint override will cause the server to start automatically
   
   #gps:
