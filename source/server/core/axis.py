@@ -456,9 +456,9 @@ class Axis(threading.Thread):
 
             # fetch target position
             if self.type == AxisType.AZIMUTH:
-                self.pos_target_degrees = az_target # in celestial reference frame
+                self.pos_target_degrees = az_target + self.parent.parent.imager.object_offset_az # in celestial reference frame
             else:
-                self.pos_target_degrees = el_target # in celestial reference frame
+                self.pos_target_degrees = el_target + self.parent.parent.imager.object_offset_el # in celestial reference frame
 
 
             self.pos_error_degrees = self.pos_target_degrees - self.pos_celestial_degrees  # error = setpoint - sensor value
