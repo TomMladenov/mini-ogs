@@ -17,18 +17,15 @@ class Object():
 
         self.parent = parent
         self.config = config
-
         self.name = self.config["s_name"]
 
         self.object = None 
-        self.azimuth_previous = 180.0
-
         self.azimuth = 0.0
         self.elevation = 0.0
         self.ra = 0.0
         self.dec = 0.0
-        self.east_west_correction_active = False
-        self.west_east_correction_active = False
+
+        self.__reset()
 
         self.observer = ephem.Observer()
         self.publish_timer = CustomTimer(self.config["f_publish_interval"], self.__publishTask).start()
@@ -36,16 +33,18 @@ class Object():
     
     def setTLE(self, name, l1, l2):
         self.object = ephem.readtle(name, l1, l2)
+        self.__reset()
+
+    def __reset(self):
         self.east_west_correction_active = False
         self.west_east_correction_active = False
         self.azimuth_previous = 180.0
 
     def setBody(self, name):
         try:
-            self.object = getattr(ephem, name)
-            self.east_west_correction_active = False
-            self.west_east_correction_active = False
-            self.azimuth_previous = 180.0
+            object = getattr(ephem, name)
+            self.object = object()
+            self.__reset()
             return {"success": True, "message": ""}
         except Exception as e:
             self.object = None
@@ -57,9 +56,7 @@ class Object():
     def setStar(self, name):
         try:
             self.object = ephem.star(name)
-            self.east_west_correction_active = False
-            self.west_east_correction_active = False
-            self.azimuth_previous = 180.0
+            self.__reset()
             return {"success": True, "message": ""}
         except Exception as e:
             self.object = None
