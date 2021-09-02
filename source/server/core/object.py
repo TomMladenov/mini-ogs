@@ -76,11 +76,6 @@ class Object():
             else:
                 self.observer.date = datetime.datetime.utcnow()
 
-            #lat, lon, elev = self.parent.gps.getPosition()
-            #self.observer.lon = lon
-            #self.observer.lat = lat
-            #self.observer.elevation = elev
-
             self.observer.lat = self.parent.mount.config["f_lat"] * ephem.degree
             self.observer.lon = self.parent.mount.config["f_lon"] * ephem.degree
             self.observer.elevation = self.parent.mount.config["f_alt"]
@@ -137,3 +132,6 @@ class Object():
         self.getPosition()
         current_status = self.getStatus()
         self.parent.telegraf.metric(self.name, current_status)
+
+    def stop(self):
+        self.publish_timer.cancel()
