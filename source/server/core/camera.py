@@ -7,6 +7,7 @@ import sys
 import threading
 from threading import Timer
 from core.timer import CustomTimer
+from core.axis import AxisType
 import time
 import json
 import datetime
@@ -23,25 +24,25 @@ import numpy as np
 import imagezmq
 import zwoasi as asi
 
-class ImagerException(Exception):
+class CanmeraException(Exception):
     pass
 
 
-class ImagerType(enum.Enum):
-    MAIN = 0
-    GUIDER = 1
+class CameraType(enum.Enum):
+    GUIDER = 0
+    IMAGER = 1
 
 
-class ImagerState(enum.Enum):
+class CameraState(enum.Enum):
     IDLE=0
     STREAMING=1
     STILL=2
 
 
-class Imager(threading.Thread):
+class Camera(threading.Thread):
 
     def __init__(self, parent, type, config, logging_level):
-        super(Imager, self).__init__()
+        super(Camera, self).__init__()
 
         logging.basicConfig(level=logging_level, format='%(asctime)s %(levelname)-8s M:%(module)s T:%(threadName)-10s  Msg:%(message)s (L%(lineno)d)')
         logging.Formatter.converter = time.gmtime
@@ -68,7 +69,38 @@ class Imager(threading.Thread):
 
         # blob detector configuration
         self.object_detection_enabled = self.config["b_object_detection_enabled"]
+
         self.params = cv2.SimpleBlobDetector_Params()
+        self.params.filterByColor = False
+        self.params.blobColor = 0 
+
+        # Extracted blobs have an area between minArea (inclusive) and maxArea (exclusive).
+        self.params.filterByArea = True
+        self.params.minArea = 5. # Highly depending on image resolution and dice size
+        self.params.maxArea = 400. # float! Highly depending on image resolution.
+
+        self.params.filterByCircularity = True
+        self.params.minCircularity = 0. # 0.7 could be rectangular, too. 1 is round. Not set because the dots are not always round when they are damaged, for example.
+        self.params.maxCircularity = 3.4028234663852886e+38 # infinity.
+
+        self.params.filterByConvexity = False
+        self.params.minConvexity = 0.
+        self.params.maxConvexity = 3.4028234663852886e+38
+
+        self.params.filterByInertia = True # a second way to find round blobs.
+        self.params.minInertiaRatio = 0.75 # 1 is round, 0 is anywhat 
+        self.params.maxInertiaRatio = 3.4028234663852886e+38 # infinity again
+
+        self.params.minThreshold = 35 # from where to start filtering the image
+        self.params.maxThreshold = 255.0 # where to end filtering the image
+        self.params.thresholdStep = 25 # steps to go through
+        self.params.minDistBetweenBlobs = 3.0 # avoid overlapping blobs. must be bigger than 0. Highly depending on image resolution! 
+        self.params.minRepeatability = 2 # if the same blob center is found at different threshold values (within a minDistBetweenBlobs), then it (basically) increases a counter for that blob. if the counter for each blob is >= minRepeatability, then it's a stable blob, and produces a KeyPoint, otherwise the blob is discarded.
+
+
+
+        '''
+        
         self.params.minThreshold = self.config["i_blob_minthreshold"]
         self.params.maxThreshold = self.config["i_blob_maxthreshold"]
         self.params.thresholdStep = self.config["i_blob_thresholdstep"]
@@ -80,6 +112,7 @@ class Imager(threading.Thread):
         self.params.filterByInertia = self.config["b_blob_filterbyinertia"]
         self.params.minInertiaRatio = self.config["i_blob_mininertiaratio"]
         self.params.maxInertiaRatio = self.config["i_blob_maxinertiaratio"]
+        '''
         self.blob_detector = cv2.SimpleBlobDetector_create(self.params)
 
         self.object_x = self.config["i_width"]/2.0
@@ -96,8 +129,8 @@ class Imager(threading.Thread):
         # drive mutex
         self.mutex = threading.Lock()
 
-        self.state = ImagerState.IDLE
-        self.nextState = ImagerState.IDLE
+        self.state = CameraState.IDLE
+        self.nextState = CameraState.IDLE
 
         self.fps_array = []     
 
@@ -110,12 +143,74 @@ class Imager(threading.Thread):
 
         logging.info('loaded ASI lib file {FILE}'.format(FILE=libfile))
 
-        try:
-            self.camera = asi.Camera(0)
-            #self.camModel = self.camera._get_camera_property(1)['Name']
-        except Exception as e:
-            logging.error('No ASI camera detected {MSG}'.format(MSG=e))
+        num_cameras = asi.get_num_cameras()
+        logging.info('Found {} connected cameras'.format(num_cameras))
+
+        correct_cam_found = False
+
+        if num_cameras == 0:
+            logging.error('No ASI camera detected {MSG}, check the USB 3.0 connections...'.format(MSG=e))
             os._exit(0)
+
+        elif num_cameras == 1:
+            try:
+                index = 0
+                logging.info('Attempting connection to Camera with ID {}'.format(index))
+                self.camera = asi.Camera(index)
+                logging.info('Connection OK')
+                id = self.camera.get_id()
+                if id != self.config["s_id"]:
+                    correct_cam_found = False
+                    logging.error('Connected to camera, but returned ID ({}) does not match the expected ID ({}), exiting...'.format(id, self.config["s_id"]))
+                    os._exit(0)
+                else:
+                    logging.info('Connected to camera with correct ID ({}), used dev index {}'.format(id, index))
+                    correct_cam_found = True
+
+            except Exception as e:
+                correct_cam_found = False                
+                logging.error('Error connecting to camera with index {}, exception: {}'.format(index, e))
+                os._exit(0)
+
+        elif num_cameras == 2:
+
+            try:
+                index = 0
+                logging.info('Attempting connection to Camera with ID {}'.format(index))
+                self.camera = asi.Camera(index)
+                logging.info('Connection OK')
+                id = self.camera.get_id()
+                if id != self.config["s_id"]:
+                    correct_cam_found = False
+                    logging.error('Connected to camera, but returned ID ({}) does not match the expected ID ({}), trying next id'.format(id, self.config["s_id"]))
+                else:
+                    logging.info('Connected to camera with correct ID ({}), used dev index {}'.format(id, index))
+                    correct_cam_found = True
+
+            except Exception as e:
+                correct_cam_found = False
+                logging.error('Error connecting to camera with index {}, exception: {}'.format(index, e))
+                # do not exit as we might still have luck with the second camera since 2 are connected
+
+            if not correct_cam_found:
+                try:
+                    index = 1
+                    logging.info('Attempting connection to Camera with ID {}'.format(index))
+                    self.camera = asi.Camera(index)
+                    logging.info('Connection OK')
+                    id = self.camera.get_id()
+                    if id != self.config["s_id"]:
+                        correct_cam_found = False
+                        logging.error('Connected to camera, but returned ID ({}) does not match the expected ID ({}), exiting...'.format(id, self.config["s_id"]))
+                        os._exit(0) 
+                    else:
+                        logging.info('Found camera with correct ID ({}), used dev index {}'.format(id, index))
+
+                except Exception as e:
+                    correct_cam_found = False
+                    logging.error('Error connecting to camera with index {}, exception: {}'.format(index, e))          
+
+
 
         self.initCamera()
 
@@ -198,39 +293,39 @@ class Imager(threading.Thread):
     # operating modes
 
     def startStreaming(self):
-        condition = (self.state == self.nextState == ImagerState.IDLE)
-        self.__executeCameraCommand(condition, ImagerState.STREAMING, self.camera.start_video_capture)
+        condition = (self.state == self.nextState == CameraState.IDLE)
+        self.__executeCameraCommand(condition, CameraState.STREAMING, self.camera.start_video_capture)
 
     def startStill(self):
-        condition = (self.state == self.nextState == ImagerState.IDLE)
-        self.__executeCameraCommand(condition, ImagerState.STILL, self.camera.stop_video_capture)
+        condition = (self.state == self.nextState == CameraState.IDLE)
+        self.__executeCameraCommand(condition, CameraState.STILL, self.camera.stop_video_capture)
 
     def setIdle(self):
-        condition = (self.state == self.nextState == ImagerState.STREAMING) or (self.state == self.nextState == ImagerState.STILL)
-        self.__executeCameraCommand(condition, ImagerState.IDLE, self.camera.stop_video_capture)
+        condition = (self.state == self.nextState == CameraState.STREAMING) or (self.state == self.nextState == CameraState.STILL)
+        self.__executeCameraCommand(condition, CameraState.IDLE, self.camera.stop_video_capture)
 
 
     def setExposure(self, exposure):
-        condition = (self.state == self.nextState == ImagerState.IDLE) or \
-                    (self.state == self.nextState == ImagerState.STREAMING) or \
-                    (self.state == self.nextState == ImagerState.STILL)
+        condition = (self.state == self.nextState == CameraState.IDLE) or \
+                    (self.state == self.nextState == CameraState.STREAMING) or \
+                    (self.state == self.nextState == CameraState.STILL)
         result = self.__executeCameraCommand(condition, self.state, self.camera.set_control_value, asi.ASI_EXPOSURE, exposure)
         if result["success"]:
             self.config["i_exposure"] = exposure
 
 
     def setGain(self, gain):
-        condition = (self.state == self.nextState == ImagerState.IDLE) or \
-                    (self.state == self.nextState == ImagerState.STREAMING) or \
-                    (self.state == self.nextState == ImagerState.STILL)
+        condition = (self.state == self.nextState == CameraState.IDLE) or \
+                    (self.state == self.nextState == CameraState.STREAMING) or \
+                    (self.state == self.nextState == CameraState.STILL)
         result = self.__executeCameraCommand(condition, self.state, self.camera.set_control_value, asi.ASI_GAIN, gain)
         if result["success"]:
             self.config["i_gain"] = gain
 
     def setFlip(self, flip):
-        condition = (self.state == self.nextState == ImagerState.IDLE) or \
-                    (self.state == self.nextState == ImagerState.STREAMING) or \
-                    (self.state == self.nextState == ImagerState.STILL)
+        condition = (self.state == self.nextState == CameraState.IDLE) or \
+                    (self.state == self.nextState == CameraState.STREAMING) or \
+                    (self.state == self.nextState == CameraState.STILL)
         result = self.__executeCameraCommand(condition, self.state, self.camera.set_control_value, asi.ASI_FLIP, flip)
         if result["success"]:
             self.config["i_flip"] = flip
@@ -244,10 +339,10 @@ class Imager(threading.Thread):
         if compression > 10 and compression < 100:
             self.config["i_transport_compression"] = compression
         else:
-            raise ImagerException("The value is not in the allowed range")
+            raise CameraException("The value is not in the allowed range")
 
     def captureFits(self, suffix):
-        if (self.state == self.nextState == ImagerState.STILL):
+        if (self.state == self.nextState == CameraState.STILL):
 
             self.mutex.acquire()
             t0 = float(time.time())
@@ -320,10 +415,38 @@ class Imager(threading.Thread):
         self.publish_timer.cancel()
         self.running = False
 
+    def getOffAxisValue(self, axis):
+        """Return the observed off-axis value in degrees
+        """
+        if axis == AxisType.AZIMUTH:
+            return self.object_offset_az
+        else:
+            return self.object_offset_el
+
+    def getOffAxisSetpoint(self, axis):
+        """Return the configured off-axis setpoint in degrees
+        The off-axis setpoint is used to provide a relation between the guider and main imager optically
+        An off axis setpoint (default is 0, 0, center of sensor) can be used when the optical axis of the main imager
+        and that of the guider are not perfectly aligned.
+        """        
+        if axis == AxisType.AZIMUTH:
+            return self.config["i_offaxis_setpoint_x"] * self.platescale_x
+        else:
+            return self.config["i_offaxis_setpoint_y"] * self.platescale_y    
+
+    def setOffAxisSetpoint(self, pix_x, pix_y):
+        """Set the configured off-axis setpoint in pixels from center
+        """   
+        if pix_x < self.config["i_width"]/2 and pix_y < self.config["i_height"]/2:
+            self.config["i_offaxis_setpoint_x"] = pix_x
+            self.config["i_offaxis_setpoint_y"] = pix_y
+        else:
+            raise CameraException("The offaxis setpoint in pixels is outside of the camera sensor frame!")
+
 
     def getStatus(self):
         status =    {
-                        "state" : ImagerState(self.state).name,
+                        "state" : CameraState(self.state).name,
                         "fps" : self.fps,
                         "temperature" : self.temperature,
                         "object_x" : self.object_x,
@@ -332,7 +455,7 @@ class Imager(threading.Thread):
                         "object_offset_y" : self.object_offset_y,
                         "object_offset_az" : self.object_offset_az,
                         "object_offset_el" : self.object_offset_el
-                    } 
+                    }
         return status
 
     # functions called internally by the task timers
@@ -362,13 +485,13 @@ class Imager(threading.Thread):
             # state register
             self.state = self.nextState
 
-            if self.state == ImagerState.IDLE:
+            if self.state == CameraState.IDLE:
                 self.fps = 0
 
-            elif self.state == ImagerState.STILL:
+            elif self.state == CameraState.STILL:
                 self.fps = 0
 
-            elif self.state == ImagerState.STREAMING:
+            elif self.state == CameraState.STREAMING:
                 self.img = self.camera.capture_video_frame(buffer_=None, filename=None, timeout=None)
                 result, buffer = cv2.imencode('.jpg', self.img, [int(cv2.IMWRITE_JPEG_QUALITY), self.config["i_transport_compression"]])
 
@@ -410,7 +533,7 @@ class Imager(threading.Thread):
             # release the mutex
             self.mutex.release()
 
-            if self.state == ImagerState.IDLE or self.state == ImagerState.STILL:
+            if self.state == CameraState.IDLE or self.state == CameraState.STILL:
                 time.sleep(1)
             else:
                 pass
