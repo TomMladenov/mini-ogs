@@ -15,7 +15,7 @@ from apscheduler import events
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from core.axis import Axis
-from core.imager import Imager, ImagerType
+from core.camera import Camera, CameraType
 from core.mount import Mount
 from core.object import Object
 from telegraf.client import TelegrafClient
@@ -65,8 +65,11 @@ class Server(object):
 
         self.object = Object(self, config = dict(load_config(items=self.configurator.items("object"))), logging_level=logging.DEBUG)
 
-        self.imager = Imager(self, type=ImagerType.MAIN, config = dict(load_config(items=self.configurator.items("imager"))), logging_level=logging.DEBUG)
-        self.imager.start()
+        self.guider = Camera(self, type=CameraType.GUIDER, config = dict(load_config(items=self.configurator.items("guider"))), logging_level=logging.DEBUG)
+        self.guider.start()
+
+        #self.imager = Camera(self, type=CameraType.IMAGER, config = dict(load_config(items=self.configurator.items("imager"))), logging_level=logging.DEBUG)
+        #self.imager.start()
 
         self.mount = Mount(	self,   config = dict(load_config(items=self.configurator.items("mount"))), 	\
                                     az_config = dict(load_config(items=self.configurator.items("azimuth"))), 	\
@@ -75,7 +78,8 @@ class Server(object):
 
  
     def shutdown(self):
-        self.imager.stop()
+        self.guider.stop()
+        #self.imager.stop()
         self.mount.stop()
         self.scheduler.stop()
         self.object.stop()

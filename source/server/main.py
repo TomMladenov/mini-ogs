@@ -32,11 +32,11 @@ tags_metadata = [
         "description": "Mount functions",
     },
     {
-        "name": "imager",
-        "description": "Imager functions",
+        "name": "guider",
+        "description": "guider functions",
     },
     {
-        "name": "guider",
+        "name": "imager",
         "description": "Guider functions",
     }				
 ]
@@ -125,11 +125,15 @@ def start_track(t: Optional[str] = None):
     return add_server_job(function=server.mount.startTracking, args=None, kwargs=None, t=t)
 
 
-@api.post("/server/mount/pid", tags=["mount"])
-def set_pid(p: float, i: float, d:float, t: Optional[str] = None):
+@api.post("/server/mount/pid_positionloop", tags=["mount"])
+def set_pid_positionloop(p: float, i: float, d:float, t: Optional[str] = None):
     keyword_arguments = {"p" : p, "i" : i, "d" : d}
-    return add_server_job(function=server.mount.setPIDvalues, args=None, kwargs=keyword_arguments, t=t)
+    return add_server_job(function=server.mount.setPidPositionLoop, args=None, kwargs=keyword_arguments, t=t)
 
+@api.post("/server/mount/pid_offaxisloop", tags=["mount"])
+def set_pid_offaxisloop(p: float, i: float, d:float, t: Optional[str] = None):
+    keyword_arguments = {"p" : p, "i" : i, "d" : d}
+    return add_server_job(function=server.mount.setPidOffAxisLoop, args=None, kwargs=keyword_arguments, t=t)
 
 @api.get("/server/mount/status", tags=["mount"])
 def get_status():
@@ -142,6 +146,57 @@ def abort():
     return add_server_job(function=server.mount.abort, args=None, kwargs=None, t=None)
 
 
+@api.put("/server/guider/stream", tags=["guider"])
+def start_stream(t: Optional[str] = None):
+    return add_server_job(function=server.guider.startStreaming, args=None, kwargs=None, t=t)
+
+@api.put("/server/guider/still", tags=["guider"])
+def start_still(t: Optional[str] = None):
+    return add_server_job(function=server.guider.startStill, args=None, kwargs=None, t=t)
+
+@api.put("/server/guider/idle", tags=["guider"])
+def set_idle(t: Optional[str] = None):
+    return add_server_job(function=server.guider.setIdle, args=None, kwargs=None, t=t)
+
+@api.put("/server/guider/still/fits", tags=["guider"])
+def take_fits(suffix : str, t: Optional[str] = None):
+    keyword_arguments = {"suffix" : suffix}
+    return add_server_job(function=server.guider.captureFits, args=None, kwargs=keyword_arguments, t=t)
+
+@api.post("/server/guider/exposure", tags=["guider"])
+def set_exposure(exposure : int, t: Optional[str] = None):
+    keyword_arguments = {"exposure" : exposure}
+    return add_server_job(function=server.guider.setExposure, args=None, kwargs=keyword_arguments, t=t)
+
+@api.post("/server/guider/gain", tags=["guider"])
+def set_gain(gain : int, t: Optional[str] = None):
+    keyword_arguments = {"gain" : gain}
+    return add_server_job(function=server.guider.setGain, args=None, kwargs=keyword_arguments, t=t)
+
+@api.post("/server/guider/flip", tags=["guider"])
+def set_flip(flip : int, t: Optional[str] = None):
+    keyword_arguments = {"flip" : flip}
+    return add_server_job(function=server.guider.setFlip, args=None, kwargs=keyword_arguments, t=t)
+
+@api.post("/server/guider/compression", tags=["guider"])
+def set_transport_compression(compression : int, t: Optional[str] = None):
+    keyword_arguments = {"compression" : compression}
+    return add_server_job(function=server.guider.setTransportCompression, args=None, kwargs=keyword_arguments, t=t)
+
+@api.put("/server/guider/blob_detector/state", tags=["guider"])
+def enable_blob_detector(state : bool, t: Optional[str] = None):
+    keyword_arguments = {"state" : state}
+    return add_server_job(function=server.guider.enableBlobDetector, args=None, kwargs=keyword_arguments, t=t)
+
+@api.post("/server/guider/off_axis_setpoint", tags=["guider"])
+def set_off_axis_setpoint(pix_x : int, pix_y : int, t: Optional[str] = None):
+    keyword_arguments = {"pix_x" : pix_x, "pix_y" : pix_y}
+    return add_server_job(function=server.guider.setOffAxisSetpoint, args=None, kwargs=keyword_arguments, t=t)
+
+
+# imager
+
+'''
 @api.put("/server/imager/stream", tags=["imager"])
 def start_stream(t: Optional[str] = None):
     return add_server_job(function=server.imager.startStreaming, args=None, kwargs=None, t=t)
@@ -178,11 +233,11 @@ def set_flip(flip : int, t: Optional[str] = None):
 def set_transport_compression(compression : int, t: Optional[str] = None):
     keyword_arguments = {"compression" : compression}
     return add_server_job(function=server.imager.setTransportCompression, args=None, kwargs=keyword_arguments, t=t)
+'''
 
-@api.put("/server/imager/blob_detector/state", tags=["imager"])
-def enable_blob_detector(state : bool, t: Optional[str] = None):
-    keyword_arguments = {"state" : state}
-    return add_server_job(function=server.imager.enableBlobDetector, args=None, kwargs=keyword_arguments, t=t)
+
+
+# object
 
 @api.post("/server/object/tle", tags=["object"])
 def set_object(name : str, l1: str, l2: str, t: Optional[str] = None):
