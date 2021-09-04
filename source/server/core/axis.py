@@ -72,8 +72,10 @@ class Axis(threading.Thread):
         self.driver_temperature = 0
         self.driver_voltage = 0.0
 
-        self.pos_target_degrees = 0.0
-        self.pos_error_degrees = 0.0
+        self.trajectory_setpoint_degrees = 0.0
+        self.trajectory_error_degrees = 0.0
+        self.offaxis_setpoint_degrees = 0.0
+        self.offaxis_error_degrees = 0.0
 
         self.previous_set_velocity = 0
 
@@ -91,14 +93,21 @@ class Axis(threading.Thread):
 
         self.configureDrive(self.config)
 
-        self.pid = PID(Kp=self.config["f_kp_controller"], Ki=self.config["f_ki_controller"], Kd=self.config["f_kd_controller"])
-        self.pid.setSampleTime(self.config["f_looprate"])
-        self.pid.setWindup(self.microstepsToDegrees(self.config["i_axisparam_4"]))
+        # position loop PID controller (inner)
+        self.pid_position = PID(Kp=self.config["f_kp_controller"], Ki=self.config["f_ki_controller"], Kd=self.config["f_kd_controller"])
+        self.pid_position.setSampleTime(self.config["f_looprate"])
+        self.pid_position.setWindup(self.microstepsToDegrees(self.config["i_axisparam_4"]))
+
+        # off-axis optical feedback PID controller (outer)
+        self.pid_offaxis = PID(Kp=self.config["f_kp_offaxis_controller"], Ki=self.config["f_ki_offaxis_controller"], Kd=self.config["f_kd_offaxis_controller"])
+        self.pid_offaxis.setSampleTime(self.config["f_looprate_offaxis_controller"])
+        self.pid_offaxis.setWindup(self.config["f_windup_offaxis_controller"])
 
         # init flags
         self.running = True
         self.out_of_limits = False
-        self.on_target = False
+        self.trajectory_on_target = False
+        self.offaxis_on_target = False
 
         # set default states
         self.state = AxisState.IDLE
@@ -111,6 +120,9 @@ class Axis(threading.Thread):
         logging.debug("{} Initialised axis ".format(self.name))
 
     def getStatus(self):
+        """Function to take a snapshot of the current class variables and put it in a Python dict.
+        """
+
         status = 	{
                         "name" : self.name,
                         "state"  : AxisState(self.state).name,
@@ -131,14 +143,25 @@ class Axis(threading.Thread):
                         "driver_status_flags"  : self.driver_status_flags,
                         "driver_temperature"  : self.driver_temperature,
                         "driver_voltage"  : self.driver_voltage,
-                        "pos_target_degrees" : self.pos_target_degrees,
-                        "pos_error_degrees" : self.pos_error_degrees,
+
+                        "trajectory_setpoint_degrees" : self.trajectory_setpoint_degrees,
+                        "trajectory_error_degrees" : self.trajectory_error_degrees,
+
+                        "offaxis_setpoint_degrees" : self.offaxis_setpoint_degrees,
+                        "offaxis_error_degrees" : self.offaxis_error_degrees,
+
                         "out_of_limits" : 1 if self.out_of_limits else 0,
-                        "P" : self.pid.PTerm,
-                        "I" : self.pid.Ki * self.pid.ITerm,
-                        "D" : self.pid.Kd * self.pid.DTerm,
-                        "on_target" : 1 if self.on_target else 0,
-                        "correction_active" : 1 if self.parent.model_active else 0
+                        "correction_active" : 1 if self.parent.model_active else 0,
+
+                        "P_trajectory" : self.pid_position.PTerm,
+                        "I_trajectory" : self.pid_position.Ki * self.pid_position.ITerm,
+                        "D_trajectory" : self.pid_position.Kd * self.pid_position.DTerm,
+                        "trajectory_on_target" : 1 if self.trajectory_on_target else 0,
+                        
+                        "P_offaxis" : self.pid_offaxis.PTerm,
+                        "I_offaxis" : self.pid_offaxis.Ki * self.pid_offaxis.ITerm,
+                        "D_offaxis" : self.pid_offaxis.Kd * self.pid_offaxis.DTerm,
+                        "offaxis_on_target" : 1 if self.offaxis_on_target else 0
                     }
         return status					
 
@@ -160,10 +183,15 @@ class Axis(threading.Thread):
                 value = config[key]	
                 status = self.__executeAxisCommand(True, AxisState.IDLE, self.drive.setAxisParameter, parameter, value)
 
-    def setPIDvalues(self, P, I, D):
-        self.pid.setKp(P)
-        self.pid.setKi(I)
-        self.pid.setKd(D)
+    def setPidPositionLoop(self, P, I, D):
+        self.pid_position.setKp(P)
+        self.pid_position.setKi(I)
+        self.pid_position.setKd(D)
+
+    def setPidOffAxisLoop(self, P, I, D):
+        self.pid_offaxis.setKp(P)
+        self.pid_offaxis.setKi(I)
+        self.pid_offaxis.setKd(D)      
 
     def setPosition(self, position_degrees):
         position_usteps = self.degreesToMicrosteps(position_degrees)
@@ -177,6 +205,8 @@ class Axis(threading.Thread):
 
 
     def gotoPosition(self, position_degrees_mount):
+        """Command the axis 
+        """
         position_usteps = self.degreesToMicrosteps(position_degrees_mount)
         condition = (self.state == self.nextState == AxisState.IDLE)
         return self.__executeAxisCommand(condition, AxisState.GOTO_POSITION, self.drive.moveTo, position_usteps)
@@ -452,20 +482,23 @@ class Axis(threading.Thread):
 
             self.__getAxisStatus()
 
-            az_target, el_target = self.parent.parent.object.getPosition()
+            # there are 2 setpoints in the cascaded controller
+            self.trajectory_setpoint_degrees = self.parent.parent.object.getPositionAxis(self.type)
+            self.offaxis_setpoint_degrees = self.parent.parent.guider.getOffAxisSetpoint(self.type)
 
-            # fetch target position
-            if self.type == AxisType.AZIMUTH:
-                self.pos_target_degrees = az_target + self.parent.parent.imager.object_offset_az # in celestial reference frame
+            # there are 2 error signals as well
+            self.trajectory_error_degrees = self.trajectory_setpoint_degrees + self.pid_offaxis.output - self.pos_celestial_degrees
+            self.offaxis_error_degrees = self.offaxis_setpoint_degrees - self.parent.parent.guider.getOffAxisValue(self.type)
+
+            if abs(self.trajectory_error_degrees) < self.config["f_target_threshold_trajectory"]:
+                self.trajectory_on_target = True
             else:
-                self.pos_target_degrees = el_target + self.parent.parent.imager.object_offset_el # in celestial reference frame
+                self.trajectory_on_target = False
 
-
-            self.pos_error_degrees = self.pos_target_degrees - self.pos_celestial_degrees  # error = setpoint - sensor value
-            if abs(self.pos_error_degrees) < self.config["f_target_threshold"]:
-                self.on_target = True
+            if abs(self.offaxis_error_degrees) < self.config["f_target_threshold_offaxis"]:
+                self.offaxis_on_target = True
             else:
-                self.on_target = False
+                self.offaxis_on_target = False
 
             # state register
             #--------------------------
@@ -499,17 +532,28 @@ class Axis(threading.Thread):
 
                 if valid and isStopped:
                     self.nextState = AxisState.IDLE
-                    self.pid.clear()
+                    self.pid_position.clear()
+                    self.pid_offaxis.clear()
                 else:
                     self.nextState = self.state
 
 
             elif self.state == AxisState.TRACK:
+                
+                # set the desired off axis setpoing
+                self.pid_offaxis.SetPoint = self.parent.parent.guider.getOffAxisSetpoint(self.type) # adjust this later to a flexible off-axis value
+                
+                # update the offaxis controller with the observed offset by the guider in that axis
+                self.pid_offaxis.update(self.parent.parent.guider.getOffAxisValue(self.type))
 
-                self.pid.SetPoint = self.pos_target_degrees
-                self.pid.update(self.pos_celestial_degrees)
-                if abs(self.pid.output) > 0:
-                    self.__setVelocity(self.pid.output)
+                # update the position loop with the calculated trajectory + output of offaxis controller
+                self.pid_position.SetPoint = self.trajectory_setpoint_degrees - self.pid_offaxis.output
+
+                # update the position loop with the current mount coordinates (albeit pushed through the pointing model)
+                self.pid_position.update(self.pos_celestial_degrees)
+
+                if abs(self.pid_position.output) > 0:
+                    self.__setVelocity(self.pid_position.output)
 
             elif self.state == AxisState.OOL:
                 valid, isStopped = self.__isStopped()
