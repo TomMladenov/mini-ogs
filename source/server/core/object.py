@@ -7,6 +7,7 @@ import numpy as np
 import logging
 import ephem
 from core.timer import CustomTimer
+from core.axis import AxisType
 
 
 class Object():
@@ -106,6 +107,13 @@ class Object():
             return self.azimuth, self.elevation 
         else:
             return 0.0, 0.0
+
+    def getPositionAxis(self, axis):
+        az, el = self.getPosition()
+        if axis == AxisType.AZIMUTH:
+            return az
+        else:
+            return el
 
     def objectLoaded(self):
         if self.object != None:
