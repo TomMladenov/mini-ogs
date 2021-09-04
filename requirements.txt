@@ -9,7 +9,7 @@ simple-websocket-server==0.4.1
 simplejson==3.13.2
 uvicorn==0.14.0
 websocket-client==0.44.0
-zwoasi==0.0.22
+zwoasi==0.1.0.1
 pyzmq==22.1.0
 pytelegraf==0.3.3
 Flask-SocketIO==4.3.2
