@@ -26,23 +26,7 @@ services:
       target: /opt/config
     - type: bind
       source: ./data/
-      target: /opt/data/      
-    # entrypoint: /bin/bash # only during development, removing this entrypoint override will cause the server to start automatically
-  
-  #gps:
-  #  image: forcedinductionz/docker-gpsd
-  #  privileged: true
-  #  ports: 
-  #    - 2947:2947
-
-  #gps_simulator:
-  #  image: forcedinductionz/docker-gpsd
-  #  privileged: true
-  #  ports: 
-  #    - 2948:2948
-  #  command: sh -c "gpsfake -p 2948 /opt/gps.log"
-  #  volumes:
-  #    - ./config/gpsfake/gps.log:/opt/gps.log
+      target: /opt/data/
   
 
 
