@@ -88,7 +88,7 @@ class Camera(threading.Thread):
         self.params.maxConvexity = 3.4028234663852886e+38
 
         self.params.filterByInertia = True # a second way to find round blobs.
-        self.params.minInertiaRatio = 0.75 # 1 is round, 0 is anywhat 
+        self.params.minInertiaRatio = 0.3 # 1 is round, 0 is anywhat 
         self.params.maxInertiaRatio = 3.4028234663852886e+38 # infinity again
 
         self.params.minThreshold = 35 # from where to start filtering the image
@@ -114,6 +114,7 @@ class Camera(threading.Thread):
         self.params.maxInertiaRatio = self.config["i_blob_maxinertiaratio"]
         '''
         self.blob_detector = cv2.SimpleBlobDetector_create(self.params)
+        self.keypoints = []
 
         self.object_x = self.config["i_width"]/2.0
         self.object_y = self.config["i_height"]/2.0
@@ -125,6 +126,7 @@ class Camera(threading.Thread):
         self.object_offset_az =  self.object_offset_x * self.platescale_x
         self.object_offset_el = self.object_offset_y * self.platescale_y
 
+        self.object_in_fov = False
 
         # drive mutex
         self.mutex = threading.Lock()
@@ -295,10 +297,12 @@ class Camera(threading.Thread):
     def startStreaming(self):
         condition = (self.state == self.nextState == CameraState.IDLE)
         self.__executeCameraCommand(condition, CameraState.STREAMING, self.camera.start_video_capture)
+        #self.__executeCameraCommand(condition, CameraState.STREAMING, time.sleep, 0.1)
 
     def startStill(self):
         condition = (self.state == self.nextState == CameraState.IDLE)
         self.__executeCameraCommand(condition, CameraState.STILL, self.camera.stop_video_capture)
+        #self.__executeCameraCommand(condition, CameraState.STREAMING, time.sleep, 0.1)
 
     def setIdle(self):
         condition = (self.state == self.nextState == CameraState.STREAMING) or (self.state == self.nextState == CameraState.STILL)
@@ -443,6 +447,9 @@ class Camera(threading.Thread):
         else:
             raise CameraException("The offaxis setpoint in pixels is outside of the camera sensor frame!")
 
+    def objectInFov(self):
+        return self.object_in_fov
+
 
     def getStatus(self):
         status =    {
@@ -492,43 +499,47 @@ class Camera(threading.Thread):
                 self.fps = 0
 
             elif self.state == CameraState.STREAMING:
-                self.img = self.camera.capture_video_frame(buffer_=None, filename=None, timeout=None)
-                result, buffer = cv2.imencode('.jpg', self.img, [int(cv2.IMWRITE_JPEG_QUALITY), self.config["i_transport_compression"]])
+                try:
+                    self.img = self.camera.capture_video_frame(buffer_=None, filename=None, timeout=(2*self.config["i_exposure"])/1000.0 + 500.0)
+                    #self.img = self.camera.capture()
+                    result, buffer = cv2.imencode('.jpg', self.img, [int(cv2.IMWRITE_JPEG_QUALITY), self.config["i_transport_compression"]])
 
-                if self.object_detection_enabled:
-                    keypoints = self.blob_detector.detect(self.img)
-                    if keypoints != []:
-                        target = keypoints[0]
-                        self.object_x = target.pt[0]
-                        self.object_y = target.pt[1]
-
+                    if self.object_detection_enabled:
+                        self.keypoints = self.blob_detector.detect(self.img)
+                        if self.keypoints != []:
+                            target = self.keypoints[0]
+                            self.object_x = target.pt[0]
+                            self.object_y = target.pt[1]
+                            self.object_in_fov = True
+                        else:             
+                            self.object_in_fov = False
+                    
                     else:
+                        self.object_in_fov = False
                         self.object_x = self.config["i_width"]/2.0
                         self.object_y = self.config["i_height"]/2.0
-                
-                else:
-                    self.object_x = self.config["i_width"]/2.0
-                    self.object_y = self.config["i_height"]/2.0
+
+                    self.object_offset_x = self.object_x - self.config["i_width"]/2.0
+                    self.object_offset_y = self.object_y - self.config["i_height"]/2.0
+
+                    # below ofcourse assumes the camera frame x=azimuth, y=elevation
+                    self.object_offset_az =  self.object_offset_x * self.platescale_x
+                    self.object_offset_el = self.object_offset_y * self.platescale_y
 
 
-                self.object_offset_x = self.object_x - self.config["i_width"]/2.0
-                self.object_offset_y = self.object_y - self.config["i_height"]/2.0
+                    metadata = json.dumps({"config":self.config, "status": self.getStatus()})
+                    self.sender.send_image(metadata, buffer)
 
-                # below ofcourse assumes the camera frame x=azimuth, y=elevation
-                self.object_offset_az =  self.object_offset_x * self.platescale_x
-                self.object_offset_el = self.object_offset_y * self.platescale_y
-
-
-                metadata = json.dumps({"config":self.config, "status": self.getStatus()})
-                self.sender.send_image(metadata, buffer)
-
-                # calculate an average frames/sec using 10 loops
-                fps = round(1.0 / self.loopdelta, 2)
-                self.fps_array.append(fps)
-                if len(self.fps_array) >= 10:
-                    self.fps = round(sum(self.fps_array)/len(self.fps_array), 2)
-                    # clear the array again
-                    self.fps_array = []
+                    # calculate an average frames/sec using 10 loops
+                    fps = round(1.0 / self.loopdelta, 2)
+                    self.fps_array.append(fps)
+                    if len(self.fps_array) >= 10:
+                        self.fps = round(sum(self.fps_array)/len(self.fps_array), 2)
+                        # clear the array again
+                        self.fps_array = []
+                except Exception as e:
+                    logging.error('Timeout on frame acquisition! {}'.format(self.config["s_name"]))
+                    pass
 
             # release the mutex
             self.mutex.release()

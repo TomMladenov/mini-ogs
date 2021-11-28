@@ -546,8 +546,11 @@ class Axis(threading.Thread):
                 # update the offaxis controller with the observed offset by the guider in that axis
                 self.pid_offaxis.update(self.parent.parent.guider.getOffAxisValue(self.type))
 
+                if self.parent.parent.guider.object_detection_enabled and self.parent.parent.guider.keypoints != []:
                 # update the position loop with the calculated trajectory + output of offaxis controller
-                self.pid_position.SetPoint = self.trajectory_setpoint_degrees - self.pid_offaxis.output
+                    self.pid_position.SetPoint = self.trajectory_setpoint_degrees - self.pid_offaxis.output
+                else:
+                    self.pid_position.SetPoint = self.trajectory_setpoint_degrees
 
                 # update the position loop with the current mount coordinates (albeit pushed through the pointing model)
                 self.pid_position.update(self.pos_celestial_degrees)
