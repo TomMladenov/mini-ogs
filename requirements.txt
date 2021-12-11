@@ -17,3 +17,4 @@ gpsd-py3==0.3.0
 pyephem==9.99
 astropy==4.1
 katpoint==0.10
+toml==0.10.2

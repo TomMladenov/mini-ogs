@@ -33,16 +33,16 @@ tags_metadata = [
     },
     {
         "name": "guider",
-        "description": "guider functions",
+        "description": "Guider functions",
     },
     {
         "name": "imager",
-        "description": "Guider functions",
+        "description": "Imager functions",
     }				
 ]
 
 #Load server
-server = Server()
+server = Server(config_file="/opt/config/config.toml")
 
 #Load API
 api = FastAPI(openapi_tags=tags_metadata)
@@ -311,7 +311,6 @@ if __name__ == '__main__':
 
     ui.start(port=5000, host='0.0.0.0', daemon=True)
 
-
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
@@ -322,10 +321,13 @@ if __name__ == '__main__':
     log_config["formatters"]["access"]["fmt"] = '%(asctime)s %(levelname)-8s M:%(module)s T:%(threadName)-10s  Msg:%(message)s (L%(lineno)d)'
     log_config["formatters"]["default"]["fmt"] = '%(asctime)s %(levelname)-8s M:%(module)s T:%(threadName)-10s  Msg:%(message)s (L%(lineno)d)'
 
+    loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
+    print(str(loggers))
+
     api.openapi = custom_openapi
 
     # ------------------ blocking call -------------------
-    uvicorn.run(api, host=server.host, port=server.port, log_config=log_config, headers=[('Server', server.s_header_description)])
+    uvicorn.run(api, host=server.host, port=server.port, log_config=log_config, headers=[('Server', server.description)])
     # ----------------------------------------------------
     
     server.shutdown()

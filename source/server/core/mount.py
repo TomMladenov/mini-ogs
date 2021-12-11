@@ -22,7 +22,7 @@ class MountException(Exception):
 
 class Mount(object):
 
-    def __init__(self, parent, config, az_config, el_config, logging_level):
+    def __init__(self, parent, config, logging_level):
 
         logging.basicConfig(level=logging_level, format='%(asctime)s %(levelname)-8s M:%(module)s T:%(threadName)-10s  Msg:%(message)s (L%(lineno)d)')
         logging.Formatter.converter = time.gmtime
@@ -31,17 +31,17 @@ class Mount(object):
         self.config = config
         self.running = True
 
-        self.name = self.config["s_name"]
+        self.name = self.config["name"]
 
         self.pm = katpoint.PointingModel() # define an empty pointing model
         self.model_active = False
 
-        if self.config["b_use_test_calib"]:
-            self.calib_points_az = self.config["l_calib_az_test"]
-            self.calib_points_el = self.config["l_calib_el_test"]
+        if self.config["use_test_calib"]:
+            self.calib_points_az = self.config["calib_az_test"]
+            self.calib_points_el = self.config["calib_el_test"]
         else:
-            self.calib_points_az = self.config["l_calib_az"]
-            self.calib_points_el = self.config["l_calib_el"]
+            self.calib_points_az = self.config["calib_az"]
+            self.calib_points_el = self.config["calib_el"]
 
         self.calibration_jobs = []
         self.calibrating = False
@@ -64,17 +64,17 @@ class Mount(object):
 
         if self.drive0_addr == 1 and self.drive1_addr == 2:
             logging.info("drive0 has serialAddress 1: linking /dev/ttyACM0 -> Azimuth")
-            self.azimuth = Axis(self, drive=self.drive0, type=AxisType.AZIMUTH, config = az_config, debug=True)
+            self.azimuth = Axis(self, drive=self.drive0, type=AxisType.AZIMUTH, config=self.config["azimuth"], debug=True)
 
             logging.info("drive1 has serialAddress 2: linking /dev/ttyACM1 -> Elevation")
-            self.elevation = Axis(self, drive=self.drive1,  type=AxisType.ELEVATION, config = el_config, debug=True)
+            self.elevation = Axis(self, drive=self.drive1,  type=AxisType.ELEVATION, config=self.config["elevation"], debug=True)
 
         elif self.drive0_addr == 2 and self.drive1_addr == 1:
             logging.info("drive1 has serialAddress 1: linking /dev/ttyACM1 -> Azimuth")
-            self.azimuth = Axis(self, drive=self.drive1,  type=AxisType.AZIMUTH, config = az_config, debug=True)
+            self.azimuth = Axis(self, drive=self.drive1,  type=AxisType.AZIMUTH, config=self.config["azimuth"], debug=True)
 
             logging.info("drive0 has serialAddress 2: linking /dev/ttyACM0 -> Elevation")
-            self.elevation = Axis(self, drive=self.drive0, type=AxisType.ELEVATION, config = el_config, debug=True)
+            self.elevation = Axis(self, drive=self.drive0, type=AxisType.ELEVATION, config=self.config["elevation"], debug=True)
 
         else:
             logging.critical("Exception encountered during mount INIT")

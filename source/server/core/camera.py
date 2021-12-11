@@ -50,7 +50,7 @@ class Camera(threading.Thread):
         self.parent = parent
         self.config = config
         self.type = type
-        self.name = self.config["s_name"]
+        self.name = self.config["name"]
         self.running = True
 
         self.fps = 0

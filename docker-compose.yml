@@ -2,6 +2,7 @@ version: "3.9"
 services:
   grafana:
     image: grafana/grafana:8.0.3
+    container_name: grafana
     network_mode: "host"
     volumes:
       - ./config/grafana/grafana.ini:/etc/grafana/grafana.ini
@@ -9,12 +10,14 @@ services:
 
   telegraf:
     image: telegraf-python:1.19.1
+    container_name: telegraf
     network_mode: "host"
     volumes:
       - ./config/telegraf/:/etc/telegraf/
   
   ogs:
     image: ogs-core
+    container_name: core
     network_mode: "host"
     privileged: true # necessary to access usb devices
     volumes:    
@@ -27,8 +30,22 @@ services:
     - type: bind
       source: ./data/
       target: /opt/data/
+    - /dev:/dev
+    command: sleep 120
   
 
+  gps:
+    image: forcedinductionz/docker-gpsd:latest-armhf
+    ipc: host # this is needed so that gpsd can access the shared memory (SHM ID 0) for ipc comms with chrony
+    container_name: gps
+    privileged: true
+    ports:
+      - 127.0.0.1:2947:2947
+    volumes:
+      - /run/udev/control:/run/udev/control    
+      - /dev/bus/usb/:/dev/bus/usb/
+      - /dev:/dev
+    command: -D2 /dev/ttyACM0 #this needs to point to the interface of the GPS device UART/USB
 
 
 

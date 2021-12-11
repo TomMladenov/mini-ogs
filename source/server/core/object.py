@@ -18,7 +18,7 @@ class Object():
 
         self.parent = parent
         self.config = config
-        self.name = self.config["s_name"]
+        self.name = self.config["name"]
 
         self.object = None 
         self.azimuth = 0.0
@@ -29,7 +29,7 @@ class Object():
         self.__reset()
 
         self.observer = ephem.Observer()
-        self.publish_timer = CustomTimer(self.config["f_publish_interval"], self.__publishTask).start()
+        self.publish_timer = CustomTimer(self.config["publish_interval"], self.__publishTask).start()
 
     
     def setTLE(self, name, l1, l2):
@@ -74,9 +74,9 @@ class Object():
             else:
                 self.observer.date = datetime.datetime.utcnow()
 
-            self.observer.lat = self.parent.mount.config["f_lat"] * ephem.degree
-            self.observer.lon = self.parent.mount.config["f_lon"] * ephem.degree
-            self.observer.elevation = self.parent.mount.config["f_alt"]
+            self.observer.lat = self.parent.mount.config["lat"] * ephem.degree
+            self.observer.lon = self.parent.mount.config["lon"] * ephem.degree
+            self.observer.elevation = self.parent.mount.config["alt"]
 
             self.object.compute(self.observer)
 

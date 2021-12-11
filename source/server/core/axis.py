@@ -46,7 +46,7 @@ class Axis(threading.Thread):
         self.drive = drive
         self.type = type
         self.config = config
-        self.name = self.config["s_name"]
+        self.name = self.config["name"]
         self.debug = debug
 
         self.errors = 0
@@ -94,14 +94,14 @@ class Axis(threading.Thread):
         self.configureDrive(self.config)
 
         # position loop PID controller (inner)
-        self.pid_position = PID(Kp=self.config["f_kp_controller"], Ki=self.config["f_ki_controller"], Kd=self.config["f_kd_controller"])
-        self.pid_position.setSampleTime(self.config["f_looprate"])
-        self.pid_position.setWindup(self.microstepsToDegrees(self.config["i_axisparam_4"]))
+        self.pid_position = PID(Kp=self.config["controller_parameters"]["kp_controller"], Ki=self.config["controller_parameters"]["ki_controller"], Kd=self.config["controller_parameters"]["kd_controller"])
+        self.pid_position.setSampleTime(self.config["controller_parameters"]["looprate"])
+        self.pid_position.setWindup(self.microstepsToDegrees(self.config["axis_parameters"]["4"]))
 
         # off-axis optical feedback PID controller (outer)
-        self.pid_offaxis = PID(Kp=self.config["f_kp_offaxis_controller"], Ki=self.config["f_ki_offaxis_controller"], Kd=self.config["f_kd_offaxis_controller"])
-        self.pid_offaxis.setSampleTime(self.config["f_looprate_offaxis_controller"])
-        self.pid_offaxis.setWindup(self.config["f_windup_offaxis_controller"])
+        self.pid_offaxis = PID(Kp=self.config["controller_parameters"]["kp_offaxis_controller"], Ki=self.config["controller_parameters"]["ki_offaxis_controller"], Kd=self.config["controller_parameters"]["kd_offaxis_controller"])
+        self.pid_offaxis.setSampleTime(self.config["controller_parameters"]["looprate_offaxis_controller"])
+        self.pid_offaxis.setWindup(self.config["controller_parameters"]["windup_offaxis_controller"])
 
         # init flags
         self.running = True
@@ -114,8 +114,8 @@ class Axis(threading.Thread):
         self.nextState = AxisState.IDLE
 
         # init task timers
-        self.poll_timer = CustomTimer(self.config["f_poll_interval"], self.__pollTask).start()
-        self.publish_timer = CustomTimer(self.config["f_publish_interval"], self.__publishTask).start()
+        self.poll_timer = CustomTimer(self.config["poll_interval"], self.__pollTask).start()
+        self.publish_timer = CustomTimer(self.config["publish_interval"], self.__publishTask).start()
 
         logging.debug("{} Initialised axis ".format(self.name))
 
@@ -177,11 +177,8 @@ class Axis(threading.Thread):
 
 
     def configureDrive(self, config):
-        for key in config:
-            if "axisparam" in key:
-                parameter = int(key.split("_")[2])
-                value = config[key]	
-                status = self.__executeAxisCommand(True, AxisState.IDLE, self.drive.setAxisParameter, parameter, value)
+        for key, value in config["axis_parameters"].items():
+            status = self.__executeAxisCommand(True, AxisState.IDLE, self.drive.setAxisParameter, int(key), value)
 
     def setPidPositionLoop(self, P, I, D):
         self.pid_position.setKp(P)
@@ -214,8 +211,8 @@ class Axis(threading.Thread):
 
     def gotoVelocity(self, velocity):
         speed_usteps = self.degreesToMicrosteps(velocity)
-        if abs(speed_usteps) > self.config["i_axisparam_4"]:
-            speed_usteps = int(math.copysign(self.config["i_axisparam_4"], speed_usteps))
+        if abs(speed_usteps) > self.config["axis_parameters"]["4"]:
+            speed_usteps = int(math.copysign(self.config["axis_parameters"]["4"], speed_usteps))
             
         condition = (self.state == self.nextState == AxisState.IDLE) or (self.state == self.nextState == AxisState.GOTO_VELOCITY)
         return self.__executeAxisCommand(condition, AxisState.GOTO_VELOCITY, self.drive.rotate, speed_usteps)
@@ -390,11 +387,11 @@ class Axis(threading.Thread):
         velocity_usteps = self.degreesToMicrosteps(velocity_degrees)
         if velocity_usteps != self.previous_set_velocity:
             try:
-                if (velocity_usteps < -self.config["i_axisparam_4"]):
-                    velocity_usteps = -self.config["i_axisparam_4"]
+                if (velocity_usteps < -self.config["axis_parameters"]["4"]):
+                    velocity_usteps = -self.config["axis_parameters"]["4"]
 
-                elif (velocity_usteps > self.config["i_axisparam_4"]):
-                    velocity_usteps = self.config["i_axisparam_4"]
+                elif (velocity_usteps > self.config["axis_parameters"]["4"]):
+                    velocity_usteps = self.config["axis_parameters"]["4"]
 
                 self.drive.rotate(velocity_usteps)
                 self.previous_set_velocity = velocity_usteps
@@ -490,12 +487,12 @@ class Axis(threading.Thread):
             self.trajectory_error_degrees = self.trajectory_setpoint_degrees + self.pid_offaxis.output - self.pos_celestial_degrees
             self.offaxis_error_degrees = self.offaxis_setpoint_degrees - self.parent.parent.guider.getOffAxisValue(self.type)
 
-            if abs(self.trajectory_error_degrees) < self.config["f_target_threshold_trajectory"]:
+            if abs(self.trajectory_error_degrees) < self.config["target_threshold_trajectory"]:
                 self.trajectory_on_target = True
             else:
                 self.trajectory_on_target = False
 
-            if abs(self.offaxis_error_degrees) < self.config["f_target_threshold_offaxis"]:
+            if abs(self.offaxis_error_degrees) < self.config["target_threshold_offaxis"]:
                 self.offaxis_on_target = True
             else:
                 self.offaxis_on_target = False
@@ -574,7 +571,7 @@ class Axis(threading.Thread):
                 else:
                     self.nextState = self.state
 
-            if (self.pos_mount_degrees < self.config["f_limit_min"] or self.pos_mount_degrees > self.config["f_limit_max"]):
+            if (self.pos_mount_degrees < self.config["limit_min"] or self.pos_mount_degrees > self.config["limit_max"]):
                 self.out_of_limits = True # purely for indicative purposes
                 if not self.state == AxisState.PARK:
                     # do not throw us back into OOL when we are parking from the OOL state
@@ -589,6 +586,6 @@ class Axis(threading.Thread):
             #===================
 
 
-            time.sleep(self.config["f_looprate"])
+            time.sleep(self.config["controller_parameters"]["looprate"])
 
 

@@ -31,7 +31,7 @@ class GPS(threading.Thread):
 
         self.parent = parent
         self.config = config
-        self.name = self.config["s_name"]
+        self.name = self.config["name"]
         self.running = True
 
         
